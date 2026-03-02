@@ -1,0 +1,140 @@
+{
+  "projectType": "frontend",
+  "projectName": "Flow Browser",
+  "projectDescription": "A modern, privacy-focused browser built on Electron with Chrome extension support and a minimalistic design.",
+  "theme": "palm",
+  "primaryColor": "#3B82F6",
+  "lightColor": "#60A5FA",
+  "darkColor": "#2563EB",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/profiles",
+              "features/spaces",
+              "features/extensions",
+              "features/tabs",
+              "features/shortcuts",
+              "features/privacy"
+            ]
+          },
+          {
+            "group": "User Guide",
+            "pages": [
+              "guides/onboarding",
+              "guides/navigation",
+              "guides/customization",
+              "guides/settings"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Development",
+        "groups": [
+          {
+            "group": "Contributing",
+            "pages": [
+              "development/setup",
+              "development/architecture",
+              "development/building",
+              "development/contributing"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "architecture/overview",
+              "architecture/main-process",
+              "architecture/renderer-process",
+              "architecture/ipc"
+            ]
+          },
+          {
+            "group": "Components",
+            "pages": [
+              "components/browser-ui",
+              "components/sidebar",
+              "components/tabs",
+              "components/portal"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core APIs",
+            "pages": [
+              "api/browser",
+              "api/tab",
+              "api/window",
+              "api/profile"
+            ]
+          },
+          {
+            "group": "Controllers",
+            "pages": [
+              "api/controllers/tabs-controller",
+              "api/controllers/windows-controller",
+              "api/controllers/spaces-controller",
+              "api/controllers/profiles-controller"
+            ]
+          },
+          {
+            "group": "Extensions",
+            "pages": [
+              "api/extensions/overview",
+              "api/extensions/locales",
+              "api/extensions/permissions"
+            ]
+          },
+          {
+            "group": "IPC",
+            "pages": [
+              "api/ipc/overview",
+              "api/ipc/browser",
+              "api/ipc/app",
+              "api/ipc/window"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Multiple profiles and spaces for organized browsing",
+    "Chrome extension support via electron-chrome-extensions",
+    "Privacy-focused with native adblocker and DRM support",
+    "Command palette for quick navigation",
+    "Customizable UI with modern React 19 components",
+    "Tab management with sleep and persistence",
+    "SQLite-based local data storage"
+  ],
+  "publicApiSurface": [
+    "Browser class - Main browser controller",
+    "Tab class - Tab lifecycle and state management",
+    "TabbedBrowserWindow - Window management",
+    "TabManager - Tab coordination",
+    "WindowManager - Window coordination",
+    "ProfileManager - Profile management",
+    "SpaceController - Space organization",
+    "IPC interfaces - Inter-process communication",
+    "Extension APIs - Chrome extension support",
+    "Settings APIs - User preferences",
+    "Shortcuts APIs - Keyboard shortcuts"
+  ]
+}
