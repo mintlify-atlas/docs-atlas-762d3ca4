@@ -1,0 +1,583 @@
+---
+title: 'Window IPC'
+description: 'IPC APIs for window management, state control, and window operations'
+icon: 'window'
+---
+
+## Overview
+
+The Window IPC namespace provides APIs for controlling browser windows, managing window state (maximized, minimized, fullscreen), and handling window operations. These APIs are available through the `window.flow.windows` and `window.flow.interface` objects.
+
+## Windows API
+
+The `window.flow.windows` API provides window management and control operations.
+
+### Source Files
+
+- **Interface**: `src/shared/flow/interfaces/app/windows.ts`
+- **Handler**: `src/main/ipc/app/window-controls.ts`
+- **Preload**: `src/preload/index.ts:759-784`
+
+### Window Controls
+
+<ParamField path="minimizeCurrentWindow" type="() => void">
+  Minimizes the current window.
+  
+  <Tabs>
+    <Tab title="Usage">
+      ```typescript
+      window.flow.windows.minimizeCurrentWindow();
+      ```
+    </Tab>
+    <Tab title="Handler">
+      ```typescript
+      // src/main/ipc/app/window-controls.ts:24-29
+      ipcMain.on("window:minimize", (event) => {
+        const win = BrowserWindow.fromWebContents(event.sender);
+        if (win) {
+          win.minimize();
+        }
+      });
+      ```
+    </Tab>
+  </Tabs>
+  
+  <Info>
+    This method works for **any** internal window type (browser windows, settings windows, etc.), not just browser windows.
+  </Info>
+</ParamField>
+
+<ParamField path="maximizeCurrentWindow" type="() => void">
+  Toggles maximize/restore on the current window.
+  
+  <Tabs>
+    <Tab title="Usage">
+      ```typescript
+      // Toggle between maximized and normal state
+      window.flow.windows.maximizeCurrentWindow();
+      ```
+    </Tab>
+    <Tab title="Handler">
+      ```typescript
+      // src/main/ipc/app/window-controls.ts:32-41
+      ipcMain.on("window:maximize", (event) => {
+        const win = BrowserWindow.fromWebContents(event.sender);
+        if (win) {
+          if (win.isMaximized()) {
+            win.unmaximize();
+          } else {
+            win.maximize();
+          }
+        }
+      });
+      ```
+    </Tab>
+  </Tabs>
+  
+  <Info>
+    This method automatically detects the current state and toggles it. If the window is maximized, it restores; if it's normal, it maximizes.
+  </Info>
+</ParamField>
+
+<ParamField path="closeCurrentWindow" type="() => void">
+  Closes the current window.
+  
+  ```typescript
+  window.flow.windows.closeCurrentWindow();
+  ```
+  
+  <Warning>
+    This will close the window immediately. Make sure to save any unsaved data before calling this method.
+  </Warning>
+</ParamField>
+
+### Window State
+
+<ParamField path="getCurrentWindowState" type="() => Promise<WindowState>">
+  Gets the current window's state (maximized, fullscreen).
+  
+  <Tabs>
+    <Tab title="Usage">
+      ```typescript
+      const state = await window.flow.windows.getCurrentWindowState();
+      console.log("Maximized:", state.isMaximized);
+      console.log("Fullscreen:", state.isFullscreen);
+      ```
+    </Tab>
+    <Tab title="Handler">
+      ```typescript
+      // src/main/ipc/app/window-controls.ts:52-58
+      ipcMain.handle("window:get-state", (event) => {
+        const win = BrowserWindow.fromWebContents(event.sender);
+        if (win) {
+          return {
+            isMaximized: win.isMaximized(),
+            isFullscreen: win.isFullScreen()
+          };
+        }
+        return false;
+      });
+      ```
+    </Tab>
+  </Tabs>
+  
+  <ResponseField name="isMaximized" type="boolean">
+    Whether the window is maximized
+  </ResponseField>
+  
+  <ResponseField name="isFullscreen" type="boolean">
+    Whether the window is in fullscreen mode
+  </ResponseField>
+</ParamField>
+
+<ParamField path="onCurrentWindowStateChanged" type="IPCListener<[WindowState]>">
+  Listens for window state changes on the current window.
+  
+  <Tabs>
+    <Tab title="Usage">
+      ```typescript
+      const unsubscribe = window.flow.windows.onCurrentWindowStateChanged((state) => {
+        console.log("Window state changed:");
+        console.log("  Maximized:", state.isMaximized);
+        console.log("  Fullscreen:", state.isFullscreen);
+      });
+      
+      // Later: clean up
+      unsubscribe();
+      ```
+    </Tab>
+    <Tab title="React Hook">
+      ```typescript
+      import { useEffect, useState } from "react";
+      
+      function useWindowState() {
+        const [state, setState] = useState({ 
+          isMaximized: false, 
+          isFullscreen: false 
+        });
+        
+        useEffect(() => {
+          // Initial fetch
+          window.flow.windows.getCurrentWindowState().then(setState);
+          
+          // Subscribe to changes
+          const unsubscribe = window.flow.windows.onCurrentWindowStateChanged(setState);
+          
+          return unsubscribe;
+        }, []);
+        
+        return state;
+      }
+      ```
+    </Tab>
+  </Tabs>
+  
+  <Info>
+    The window state change events are automatically attached to every window when it's created. See `src/main/ipc/app/window-controls.ts:62-75` for the implementation.
+  </Info>
+</ParamField>
+
+### Settings Window
+
+<ParamField path="openSettingsWindow" type="() => void">
+  Opens the settings window.
+  
+  ```typescript
+  window.flow.windows.openSettingsWindow();
+  ```
+</ParamField>
+
+<ParamField path="closeSettingsWindow" type="() => void">
+  Closes the settings window.
+  
+  ```typescript
+  window.flow.windows.closeSettingsWindow();
+  ```
+</ParamField>
+
+## Interface API
+
+The `window.flow.interface` API provides advanced window control and UI positioning.
+
+### Source Files
+
+- **Interface**: `src/shared/flow/interfaces/browser/interface.ts`
+- **Handler**: `src/main/ipc/browser/interface.ts`
+- **Preload**: `src/preload/index.ts:514-572`
+
+### Browser Window Controls
+
+<Info>
+These methods are duplicates of `window.flow.windows` methods but scoped to the browser-specific interface API. They provide the same functionality.
+</Info>
+
+<ParamField path="minimizeWindow" type="() => void">
+  Minimizes the window.
+  
+  ```typescript
+  window.flow.interface.minimizeWindow();
+  ```
+</ParamField>
+
+<ParamField path="maximizeWindow" type="() => void">
+  Toggles maximize/restore on the window.
+  
+  ```typescript
+  window.flow.interface.maximizeWindow();
+  ```
+</ParamField>
+
+<ParamField path="closeWindow" type="() => void">
+  Closes the window.
+  
+  ```typescript
+  window.flow.interface.closeWindow();
+  ```
+</ParamField>
+
+<ParamField path="getWindowState" type="() => Promise<WindowState>">
+  Gets the window's state.
+  
+  ```typescript
+  const state = await window.flow.interface.getWindowState();
+  ```
+</ParamField>
+
+<ParamField path="onWindowStateChanged" type="IPCListener<[WindowState]>">
+  Listens for window state changes.
+  
+  ```typescript
+  const unsubscribe = window.flow.interface.onWindowStateChanged((state) => {
+    console.log("State:", state);
+  });
+  ```
+</ParamField>
+
+### Popup Window Controls
+
+<Info>
+These methods are designed for popup windows created by web pages. They're tightly secured and will only work in popup window contexts.
+</Info>
+
+<ParamField path="moveWindowBy" type="(x: number, y: number) => void">
+  Moves the popup window by a relative amount.
+  
+  ```typescript
+  // Move window 10px right, 5px down
+  window.flow.interface.moveWindowBy(10, 5);
+  ```
+  
+  <ParamField path="x" type="number" required>
+    Horizontal offset in pixels (positive = right, negative = left)
+  </ParamField>
+  
+  <ParamField path="y" type="number" required>
+    Vertical offset in pixels (positive = down, negative = up)
+  </ParamField>
+</ParamField>
+
+<ParamField path="moveWindowTo" type="(x: number, y: number) => void">
+  Moves the popup window to an absolute position.
+  
+  ```typescript
+  // Move window to (100, 200) on screen
+  window.flow.interface.moveWindowTo(100, 200);
+  ```
+  
+  <ParamField path="x" type="number" required>
+    Horizontal position in pixels from the left edge of the screen
+  </ParamField>
+  
+  <ParamField path="y" type="number" required>
+    Vertical position in pixels from the top edge of the screen
+  </ParamField>
+</ParamField>
+
+<ParamField path="resizeWindowBy" type="(width: number, height: number) => void">
+  Resizes the popup window by a relative amount.
+  
+  ```typescript
+  // Increase window size by 50px width, 30px height
+  window.flow.interface.resizeWindowBy(50, 30);
+  ```
+  
+  <ParamField path="width" type="number" required>
+    Width change in pixels (positive = larger, negative = smaller)
+  </ParamField>
+  
+  <ParamField path="height" type="number" required>
+    Height change in pixels (positive = larger, negative = smaller)
+  </ParamField>
+</ParamField>
+
+<ParamField path="resizeWindowTo" type="(width: number, height: number) => void">
+  Resizes the popup window to an absolute size.
+  
+  ```typescript
+  // Resize window to 800x600
+  window.flow.interface.resizeWindowTo(800, 600);
+  ```
+  
+  <ParamField path="width" type="number" required>
+    New width in pixels
+  </ParamField>
+  
+  <ParamField path="height" type="number" required>
+    New height in pixels
+  </ParamField>
+</ParamField>
+
+### Popup Polyfills
+
+Flow automatically polyfills the standard `window.moveBy()`, `window.moveTo()`, `window.resizeBy()`, and `window.resizeTo()` methods to use the IPC API:
+
+```typescript
+// These standard methods work in Flow popup windows
+window.moveBy(10, 5);
+window.moveTo(100, 200);
+window.resizeBy(50, 30);
+window.resizeTo(800, 600);
+```
+
+See `src/preload/index.ts:308-341` for the polyfill implementation.
+
+## Examples
+
+### Window Controls Component
+
+```typescript
+import { useEffect, useState } from "react";
+
+function WindowControls() {
+  const [state, setState] = useState({ 
+    isMaximized: false, 
+    isFullscreen: false 
+  });
+  
+  useEffect(() => {
+    // Get initial state
+    window.flow.windows.getCurrentWindowState().then(setState);
+    
+    // Subscribe to changes
+    const unsubscribe = window.flow.windows.onCurrentWindowStateChanged(setState);
+    
+    return unsubscribe;
+  }, []);
+  
+  return (
+    <div className="window-controls">
+      <button 
+        onClick={() => window.flow.windows.minimizeCurrentWindow()}
+        title="Minimize"
+      >
+        −
+      </button>
+      
+      <button 
+        onClick={() => window.flow.windows.maximizeCurrentWindow()}
+        title={state.isMaximized ? "Restore" : "Maximize"}
+      >
+        {state.isMaximized ? "⧉" : "□"}
+      </button>
+      
+      <button 
+        onClick={() => window.flow.windows.closeCurrentWindow()}
+        title="Close"
+        className="close"
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+```
+
+### Fullscreen Toggle
+
+```typescript
+import { useEffect, useState } from "react";
+
+function FullscreenToggle() {
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  useEffect(() => {
+    const unsubscribe = window.flow.windows.onCurrentWindowStateChanged((state) => {
+      setIsFullscreen(state.isFullscreen);
+    });
+    
+    return unsubscribe;
+  }, []);
+  
+  if (!isFullscreen) {
+    return null;
+  }
+  
+  return (
+    <div className="fullscreen-banner">
+      <p>Press ESC to exit fullscreen</p>
+    </div>
+  );
+}
+```
+
+### Responsive UI Based on Window State
+
+```typescript
+import { useEffect, useState } from "react";
+
+function ResponsiveUI() {
+  const [windowState, setWindowState] = useState({ 
+    isMaximized: false, 
+    isFullscreen: false 
+  });
+  
+  useEffect(() => {
+    window.flow.windows.getCurrentWindowState().then(setWindowState);
+    const unsubscribe = window.flow.windows.onCurrentWindowStateChanged(setWindowState);
+    return unsubscribe;
+  }, []);
+  
+  return (
+    <div 
+      className={`
+        app-ui 
+        ${windowState.isMaximized ? 'maximized' : 'normal'}
+        ${windowState.isFullscreen ? 'fullscreen' : ''}
+      `}
+    >
+      {windowState.isFullscreen && (
+        <div className="fullscreen-controls">
+          {/* Fullscreen-specific controls */}
+        </div>
+      )}
+      
+      {!windowState.isFullscreen && (
+        <div className="normal-controls">
+          {/* Normal window controls */}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+### Popup Window Controller
+
+```typescript
+// This would run in a popup window created by window.open()
+function PopupController() {
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [size, setSize] = useState({ width: 400, height: 300 });
+  
+  const handleMove = (direction: 'up' | 'down' | 'left' | 'right') => {
+    const offset = 10;
+    switch (direction) {
+      case 'up':
+        window.flow.interface.moveWindowBy(0, -offset);
+        setPosition(p => ({ ...p, y: p.y - offset }));
+        break;
+      case 'down':
+        window.flow.interface.moveWindowBy(0, offset);
+        setPosition(p => ({ ...p, y: p.y + offset }));
+        break;
+      case 'left':
+        window.flow.interface.moveWindowBy(-offset, 0);
+        setPosition(p => ({ ...p, x: p.x - offset }));
+        break;
+      case 'right':
+        window.flow.interface.moveWindowBy(offset, 0);
+        setPosition(p => ({ ...p, x: p.x + offset }));
+        break;
+    }
+  };
+  
+  const handleResize = (bigger: boolean) => {
+    const delta = bigger ? 50 : -50;
+    window.flow.interface.resizeWindowBy(delta, delta);
+    setSize(s => ({ 
+      width: s.width + delta, 
+      height: s.height + delta 
+    }));
+  };
+  
+  return (
+    <div className="popup-controller">
+      <div className="position-controls">
+        <button onClick={() => handleMove('up')}>↑</button>
+        <button onClick={() => handleMove('down')}>↓</button>
+        <button onClick={() => handleMove('left')}>←</button>
+        <button onClick={() => handleMove('right')}>→</button>
+      </div>
+      
+      <div className="size-controls">
+        <button onClick={() => handleResize(true)}>Bigger</button>
+        <button onClick={() => handleResize(false)}>Smaller</button>
+      </div>
+      
+      <div className="info">
+        <p>Position: {position.x}, {position.y}</p>
+        <p>Size: {size.width} × {size.height}</p>
+      </div>
+    </div>
+  );
+}
+```
+
+## Permissions
+
+The Window API uses the following permission levels:
+
+<ResponseField name="window.flow.windows.*" type="app">
+  All `window.flow.windows` methods require "app" permission (available to Flow internal protocols and extension pages)
+</ResponseField>
+
+<ResponseField name="window.flow.interface.*" type="browser">
+  Most `window.flow.interface` methods require "browser" permission (available to browser UI and omnibox)
+</ResponseField>
+
+<ResponseField name="moveWindowTo, resizeWindowTo" type="all">
+  Popup window manipulation methods are available to all pages (special exception for popup window compatibility)
+</ResponseField>
+
+<Info>
+See the [IPC Overview](/api/ipc/overview#permission-system) for more information about the permission system.
+</Info>
+
+## Type Definitions
+
+### WindowState
+
+```typescript
+interface WindowState {
+  isMaximized: boolean;   // Whether the window is maximized
+  isFullscreen: boolean;  // Whether the window is in fullscreen mode
+}
+```
+
+### IPCListener
+
+```typescript
+type IPCListener<T extends any[]> = (callback: (...args: T) => void) => () => void;
+```
+
+IPCListener functions:
+- Accept a callback function
+- Return an unsubscribe function
+- Automatically manage listener lifecycle
+
+## Related APIs
+
+<CardGroup cols={2}>
+  <Card title="App IPC" icon="application" href="/api/ipc/app">
+    Application information and utilities
+  </Card>
+  <Card title="Browser IPC" icon="browser" href="/api/ipc/browser">
+    Browser profiles and tab management
+  </Card>
+  <Card title="IPC Overview" icon="arrows-left-right" href="/api/ipc/overview">
+    Learn about Flow's IPC architecture
+  </Card>
+  <Card title="Interface API" icon="window-maximize" href="#interface-api">
+    Advanced window control and UI positioning
+  </Card>
+</CardGroup>

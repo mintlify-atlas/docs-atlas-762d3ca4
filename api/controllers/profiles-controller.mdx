@@ -1,0 +1,508 @@
+---
+title: 'ProfilesController'
+description: 'Manages user profiles for isolating browsing data and settings in Flow Browser'
+---
+
+## Overview
+
+The `ProfilesController` manages user profiles - isolated environments with separate browsing data, settings, cookies, and extensions. Each profile can contain multiple spaces for organizing tabs.
+
+<Info>
+  **Import**: `import { profilesController } from '@/controllers/profiles-controller'`
+  
+  The controller is a singleton instance exported as `profilesController`.
+</Info>
+
+## Key Concepts
+
+### What is a Profile?
+
+A profile in Flow Browser is similar to Chrome's profiles or Firefox's containers:
+
+- **Isolated browsing data**: Separate cookies, cache, history, and local storage
+- **Independent settings**: Each profile has its own preferences
+- **Unique extensions**: Install different extensions per profile
+- **Multiple spaces**: Each profile can have multiple workspace spaces
+- **File system storage**: Profile data is stored in separate directories
+
+<CardGroup cols={2}>
+  <Card title="Work Profile" icon="briefcase">
+    Company accounts, work extensions
+  </Card>
+  <Card title="Personal Profile" icon="home">
+    Personal accounts, entertainment
+  </Card>
+  <Card title="Development Profile" icon="code">
+    Dev tools, testing environments
+  </Card>
+  <Card title="Research Profile" icon="book">
+    Clean environment for research
+  </Card>
+</CardGroup>
+
+### Data Structure
+
+```typescript
+interface ProfileData {
+  name: string;          // Display name
+  icon: string | null;   // Icon/emoji for UI
+  createdAt: number;     // Creation timestamp
+}
+
+type ProfileDataWithId = ProfileData & { id: string };
+```
+
+## Initialization
+
+The controller automatically creates a default "Main" profile on first run:
+
+```typescript
+// Automatically called on startup
+profilesController._setupInitialProfile();
+```
+
+This creates:
+- Profile ID: `"main"`
+- Profile name: `"Main"`
+- No initial space (handled separately)
+
+<Warning>
+  **Don't call `_setupInitialProfile()` manually**. It's called automatically via `queueMicrotask()` on controller initialization.
+</Warning>
+
+## Core Methods
+
+### Creating Profiles
+
+#### create()
+
+Create a new profile with a generated unique ID.
+
+```typescript
+public async create(
+  profileName: string,
+  shouldCreateSpace?: boolean
+): Promise<boolean>
+```
+
+<ParamField path="profileName" type="string" required>
+  Display name for the profile
+</ParamField>
+
+<ParamField path="shouldCreateSpace" type="boolean" default="true">
+  Whether to create a default space in the profile
+</ParamField>
+
+<ResponseField name="return" type="Promise<boolean>">
+  `true` if profile was created successfully
+</ResponseField>
+
+**Example**:
+
+```typescript
+// Create profile with default space
+const success = await profilesController.create('Work Profile');
+
+if (success) {
+  console.log('Profile created successfully');
+}
+
+// Create profile without initial space
+const success2 = await profilesController.create(
+  'Development',
+  false // Don't create space
+);
+```
+
+### Retrieving Profiles
+
+#### get()
+
+Get a profile by its ID.
+
+```typescript
+public async get(profileId: string): Promise<ProfileData | null>
+```
+
+**Example**:
+
+```typescript
+const profile = await profilesController.get('main');
+if (profile) {
+  console.log(`Profile: ${profile.name}`);
+  console.log(`Created: ${new Date(profile.createdAt)}`);
+}
+```
+
+#### getAll()
+
+Get all profiles, sorted by creation date.
+
+```typescript
+public async getAll(): Promise<ProfileDataWithId[]>
+```
+
+**Example**:
+
+```typescript
+const profiles = await profilesController.getAll();
+
+profiles.forEach(profile => {
+  console.log(`${profile.name} (ID: ${profile.id})`);
+});
+```
+
+### Updating Profiles
+
+#### update()
+
+Update profile properties.
+
+```typescript
+public async update(
+  profileId: string,
+  profileData: Partial<ProfileData>
+): Promise<boolean>
+```
+
+<ParamField path="profileId" type="string" required>
+  Profile ID to update
+</ParamField>
+
+<ParamField path="profileData" type="Partial<ProfileData>" required>
+  Fields to update (name, icon, etc.)
+</ParamField>
+
+**Example**:
+
+```typescript
+// Rename profile
+await profilesController.update('main', {
+  name: 'Personal'
+});
+
+// Update icon
+await profilesController.update('work-profile', {
+  icon: '💼'
+});
+
+// Update multiple fields
+await profilesController.update('dev-profile', {
+  name: 'Development',
+  icon: '⚡'
+});
+```
+
+### Deleting Profiles
+
+#### delete()
+
+Delete a profile permanently.
+
+```typescript
+public async delete(profileId: string): Promise<boolean>
+```
+
+<Warning>
+  Deleting a profile does not automatically delete its spaces or tabs. Handle cleanup separately.
+</Warning>
+
+**Example**:
+
+```typescript
+const deleted = await profilesController.delete('old-profile');
+if (deleted) {
+  console.log('Profile deleted');
+}
+```
+
+## File System Integration
+
+#### getProfilePath()
+
+Get the file system path for a profile's data directory.
+
+```typescript
+public getProfilePath(profileId: string): string
+```
+
+**Example**:
+
+```typescript
+const profilePath = profilesController.getProfilePath('main');
+console.log(`Profile data stored at: ${profilePath}`);
+
+// Typical path: /Users/username/Library/Application Support/Flow/profiles/main
+```
+
+This path contains:
+- Session data (cookies, storage)
+- Extensions
+- Cache
+- Preferences
+
+## Events
+
+The ProfilesController extends `TypedEventEmitter` with these events:
+
+<ResponseField name="profile-created" type="[profileId: string, profileData: ProfileData]">
+  Emitted when a new profile is created
+</ResponseField>
+
+<ResponseField name="profile-updated" type="[profileId: string, updatedFields: Partial<ProfileData>]">
+  Emitted when a profile is modified
+</ResponseField>
+
+<ResponseField name="profile-deleted" type="[profileId: string]">
+  Emitted when a profile is deleted
+</ResponseField>
+
+<ResponseField name="requested-all-profiles" type="[]">
+  Emitted when all profiles are loaded into cache
+</ResponseField>
+
+**Example**:
+
+```typescript
+profilesController.on('profile-created', (profileId, profileData) => {
+  console.log(`New profile created: ${profileData.name}`);
+  console.log(`Profile ID: ${profileId}`);
+});
+
+profilesController.on('profile-updated', (profileId, updatedFields) => {
+  console.log(`Profile ${profileId} updated:`, updatedFields);
+});
+
+profilesController.on('profile-deleted', (profileId) => {
+  console.log(`Profile ${profileId} deleted`);
+});
+```
+
+## Caching Strategy
+
+The ProfilesController uses an efficient caching system:
+
+- Profiles are loaded on-demand from the database
+- Once loaded, they're cached in memory
+- Cache is automatically updated on modifications
+- `requestedAllProfiles` flag tracks full cache status
+
+### Cache Status
+
+Check if all profiles are loaded:
+
+```typescript
+if (profilesController.requestedAllProfiles) {
+  // All profiles are cached
+  const profiles = await profilesController.getAll();
+} else {
+  // First call will load from database
+  const profiles = await profilesController.getAll();
+}
+```
+
+## Usage Patterns
+
+### Profile Switcher
+
+Implement a profile switcher UI:
+
+```typescript
+// Get all profiles for UI
+const profiles = await profilesController.getAll();
+
+// Render profile list
+profiles.forEach(profile => {
+  renderProfileButton({
+    id: profile.id,
+    name: profile.name,
+    icon: profile.icon,
+    isActive: currentProfileId === profile.id,
+    onClick: () => switchToProfile(profile.id)
+  });
+});
+
+function switchToProfile(profileId: string) {
+  // Load profile session and spaces
+  loadedProfilesController.load(profileId);
+  
+  // Switch to last used space in profile
+  const lastSpace = await spacesController.getLastUsedFromProfile(profileId);
+  if (lastSpace) {
+    tabsController.setCurrentWindowSpace(windowId, lastSpace.id);
+  }
+}
+```
+
+### Creating a New Profile
+
+```typescript
+// Create profile with wizard
+async function createNewProfile(name: string, icon: string) {
+  // Create profile
+  const success = await profilesController.create(name);
+  
+  if (!success) {
+    console.error('Failed to create profile');
+    return null;
+  }
+  
+  // Get the newly created profile
+  const profiles = await profilesController.getAll();
+  const newProfile = profiles[profiles.length - 1];
+  
+  // Update icon
+  await profilesController.update(newProfile.id, { icon });
+  
+  // Load the profile
+  await loadedProfilesController.load(newProfile.id);
+  
+  return newProfile;
+}
+
+// Usage
+const profile = await createNewProfile('Work', '💼');
+if (profile) {
+  console.log(`Created profile: ${profile.name}`);
+}
+```
+
+### Profile Management UI
+
+```typescript
+// List all profiles with metadata
+async function getProfilesWithMetadata() {
+  const profiles = await profilesController.getAll();
+  
+  return Promise.all(profiles.map(async profile => {
+    // Get spaces count
+    const spaces = await spacesController.getAllFromProfile(profile.id);
+    
+    // Get tabs count
+    const tabs = tabsController.getTabsInProfile(profile.id);
+    
+    return {
+      ...profile,
+      spacesCount: spaces.length,
+      tabsCount: tabs.length,
+      path: profilesController.getProfilePath(profile.id)
+    };
+  }));
+}
+
+// Usage
+const profilesWithMeta = await getProfilesWithMetadata();
+profilesWithMeta.forEach(profile => {
+  console.log(`${profile.name}: ${profile.tabsCount} tabs in ${profile.spacesCount} spaces`);
+});
+```
+
+### Safe Profile Deletion
+
+```typescript
+async function deleteProfileSafely(profileId: string) {
+  // Don't delete the main profile
+  if (profileId === 'main') {
+    console.error('Cannot delete main profile');
+    return false;
+  }
+  
+  // Close all tabs in this profile
+  const tabs = tabsController.getTabsInProfile(profileId);
+  for (const tab of tabs) {
+    tab.destroy();
+  }
+  
+  // Delete all spaces
+  const spaces = await spacesController.getAllFromProfile(profileId);
+  for (const space of spaces) {
+    await spacesController.delete(profileId, space.id);
+  }
+  
+  // Unload profile if loaded
+  await loadedProfilesController.unload(profileId);
+  
+  // Finally delete the profile
+  return await profilesController.delete(profileId);
+}
+```
+
+## Data Validation
+
+The controller uses Zod schemas for data validation:
+
+```typescript
+import { ProfileDataSchema } from '@/controllers/profiles-controller';
+
+// Validate profile data
+const result = ProfileDataSchema.safeParse(profileData);
+if (result.success) {
+  console.log('Valid profile data');
+} else {
+  console.error('Invalid profile data:', result.error);
+}
+```
+
+## Integration with Other Controllers
+
+### With LoadedProfilesController
+
+```typescript
+import { loadedProfilesController } from '@/controllers/loaded-profiles-controller';
+
+// Create and load profile
+const success = await profilesController.create('Work');
+if (success) {
+  const profiles = await profilesController.getAll();
+  const newProfile = profiles[profiles.length - 1];
+  
+  // Load the profile session
+  await loadedProfilesController.load(newProfile.id);
+  
+  // Profile is now ready for tabs
+}
+```
+
+### With SpacesController
+
+```typescript
+// Get profile with all its spaces
+async function getProfileWithSpaces(profileId: string) {
+  const profile = await profilesController.get(profileId);
+  const spaces = await spacesController.getAllFromProfile(profileId);
+  
+  return { profile, spaces };
+}
+```
+
+## Best Practices
+
+<Tip>
+  Always create at least one space when creating a new profile for better user experience.
+</Tip>
+
+<Warning>
+  Profile IDs are permanent. Don't expose profile IDs directly in URLs or shareable content.
+</Warning>
+
+```typescript
+// Good - create with space
+await profilesController.create('Work Profile', true);
+
+// Avoid - creates orphan profile
+await profilesController.create('Work Profile', false);
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Spaces Controller" icon="layer-group" href="/api/controllers/spaces-controller">
+    Manage spaces within profiles
+  </Card>
+  <Card title="Loaded Profiles Controller" icon="memory" href="/api/controllers/loaded-profiles-controller">
+    Session management for profiles
+  </Card>
+  <Card title="Tabs Controller" icon="window" href="/api/controllers/tabs-controller">
+    Tab management within profiles
+  </Card>
+</CardGroup>

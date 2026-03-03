@@ -1,0 +1,145 @@
+---
+title: Introduction
+description: Welcome to Flow Browser - A modern, privacy-focused web browser built on Electron
+---
+
+<p align="center">
+  <img src="/images/logo.png" width="128" height="128" alt="Flow Browser Logo" />
+</p>
+
+## What is Flow Browser?
+
+Flow Browser is a lightweight, feature-rich web browser that combines the power of Chromium with a clean, modern interface. Built on Electron, it offers full support for Chrome extensions, making it a versatile alternative to mainstream browsers.
+
+<Note>
+  Flow Browser is currently in beta (v0.10.1) and actively under development. Join us in shaping the future of privacy-focused browsing!
+</Note>
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Profiles & Spaces" icon="user-group">
+    Multiple profiles support with different settings and extensions for each. Organize your tabs into different spaces for better workflow management.
+  </Card>
+  
+  <Card title="Chrome Extensions" icon="puzzle-piece">
+    Full support for Chrome extensions from the Chrome Web Store. Install your favorite extensions and enhance your browsing experience.
+  </Card>
+  
+  <Card title="Command Palette" icon="terminal">
+    Quick access to search, bookmarks, history, and browser actions. Press a keyboard shortcut to instantly navigate anywhere.
+  </Card>
+  
+  <Card title="Native Adblocker" icon="shield-check">
+    Built-in adblocker powered by Ghostery that blocks ads and trackers, protecting your privacy without additional extensions.
+  </Card>
+  
+  <Card title="Tab Management" icon="layer-group">
+    Persist tabs between restarts and put inactive tabs to sleep to save system resources. Never lose your workflow again.
+  </Card>
+  
+  <Card title="Widevine Support" icon="play">
+    Watch DRM-protected content from Netflix, Spotify, and other streaming services with built-in Widevine CDM support.
+  </Card>
+</CardGroup>
+
+## Privacy & Security
+
+Flow Browser prioritizes your privacy:
+
+- **External Application Prompts**: Always asks before opening external applications
+- **Native Ad Blocking**: Blocks ads and trackers at the network level using [@ghostery/adblocker-electron](https://www.npmjs.com/package/@ghostery/adblocker-electron)
+- **No Telemetry by Default**: Your browsing data stays on your device
+- **Open Source**: Full transparency with GPL-3.0 license
+
+## Technology Stack
+
+Flow Browser is built with modern web technologies:
+
+```json
+{
+  "runtime": "Electron 40.1.0 (Chromium)",
+  "frontend": "React 19 + TypeScript",
+  "styling": "TailwindCSS 4",
+  "database": "SQLite (better-sqlite3 + Drizzle ORM)",
+  "animation": "Motion (motion/react)",
+  "build": "Vite + electron-vite + electron-builder"
+}
+```
+
+## What Makes Flow Different?
+
+<Steps>
+  <Step title="Minimalistic Design">
+    Inspired by Arc Browser and Zen Browser, Flow features a clean, distraction-free interface with a customizable sidebar and optional topbar.
+  </Step>
+  
+  <Step title="Workspace Organization">
+    Unique combination of Profiles (for different identities) and Spaces (for task organization) helps you keep work, personal, and hobby browsing completely separate.
+  </Step>
+  
+  <Step title="Developer-Friendly">
+    Built on open web standards with full Chrome DevTools support, extension APIs, and an architecture designed for customization.
+  </Step>
+  
+  <Step title="Resource Efficient">
+    Sleep tabs feature and optimized rendering help reduce memory usage compared to traditional browsers.
+  </Step>
+</Steps>
+
+## Getting Started
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Download and install Flow Browser on Windows, macOS, or Linux
+  </Card>
+  
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get up and running in minutes with our quick start guide
+  </Card>
+  
+  <Card title="Features" icon="star" href="/features/profiles">
+    Explore all the features that make Flow Browser unique
+  </Card>
+  
+  <Card title="Contributing" icon="code" href="/development/contributing">
+    Help improve Flow Browser - contributions are welcome!
+  </Card>
+</CardGroup>
+
+## Upcoming Features
+
+We're constantly working on new features:
+
+- **Reorder Tabs**: Drag and drop tabs to reorder them
+- **Customizable Layout**: Switch between topbar and sidebar layouts
+- **Downloads Manager**: Full-featured download management
+- **Pinned Tabs**: Pin important tabs in your spaces
+- **Custom Search Engines**: Add your preferred search providers
+- **Tab Previews**: Hover to preview tab contents
+
+## Community & Support
+
+<CardGroup cols={3}>
+  <Card title="GitHub" icon="github" href="https://github.com/MultiboxLabs/flow-browser">
+    Star us on GitHub and report issues
+  </Card>
+  
+  <Card title="Feedback" icon="comments" href="https://flowbrowser.userjot.com/">
+    Share feedback and feature requests
+  </Card>
+  
+  <Card title="Documentation" icon="book" href="https://deepwiki.com/multiboxlabs/flow-browser">
+    Deep dive into Flow Browser documentation
+  </Card>
+</CardGroup>
+
+## License
+
+Flow Browser is open source software licensed under the [GNU General Public License v3.0 (GPL-3.0)](https://opensource.org/licenses/GPL-3.0). This means you're free to use, modify, and distribute the software, with the requirement that any modifications are also open sourced under the same license.
+
+---
+
+<Note>
+  Ready to get started? Head over to the [Installation](/installation) guide to download Flow Browser for your platform.
+</Note>

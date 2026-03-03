@@ -1,0 +1,300 @@
+---
+title: Extensions
+description: Extend Flow Browser functionality with Chrome Web Store extensions
+icon: puzzle-piece
+---
+
+Flow Browser supports Chrome extensions, allowing you to customize and extend your browsing experience. Extensions are installed per-profile, providing complete isolation between different browsing contexts.
+
+## Extension Support
+
+Flow Browser uses Electron's extension APIs to provide Chrome Web Store extension compatibility:
+
+<CardGroup cols={2}>
+  <Card title="Per-Profile" icon="user">
+    Extensions are installed separately for each profile
+  </Card>
+  <Card title="Manifest V2 & V3" icon="file-code">
+    Support for both Manifest V2 and V3 extensions
+  </Card>
+  <Card title="Extension Management" icon="sliders">
+    Enable, disable, pin, and uninstall extensions
+  </Card>
+  <Card title="Permissions" icon="shield-check">
+    Review extension permissions before installation
+  </Card>
+</CardGroup>
+
+## Managing Extensions
+
+Extensions are managed through the Settings interface. Each profile maintains its own set of installed extensions.
+
+### Extension Data Structure
+
+When you access extensions in the renderer, you receive this data structure:
+
+```typescript
+interface SharedExtensionData {
+  type: 'extension' | 'theme';     // Extension type
+  id: string;                       // Unique extension ID
+  name: string;                     // Localized name
+  short_name?: string;              // Short name (if available)
+  description?: string;             // Localized description
+  icon: string;                     // Icon URL (flow://extension-icon)
+  enabled: boolean;                 // Is the extension enabled?
+  pinned: boolean;                  // Is it pinned to toolbar?
+  version: string;                  // Extension version
+  path: string;                     // File system path
+  size: number;                     // Total size in bytes
+  permissions: string[];            // Permission warnings
+  inspectViews: any[];             // Debug views (future)
+}
+```
+
+## Extension Operations
+
+The extension system provides several IPC handlers for managing extensions:
+
+<AccordionGroup>
+  <Accordion title="Get All Extensions">
+    Retrieve all extensions installed in the current profile:
+
+    ```typescript
+    const extensions = await window.flow.extensions.getAllInCurrentProfile();
+    ```
+
+    Implementation at `src/main/ipc/app/extensions.ts:102-110`.
+  </Accordion>
+
+  <Accordion title="Enable/Disable Extension">
+    Toggle an extension on or off:
+
+    ```typescript
+    const success = await window.flow.extensions.setEnabled(extensionId, true);
+    ```
+
+    This calls `extensionsManager.setExtensionDisabled()` at `src/main/ipc/app/extensions.ts:114-125`.
+  </Accordion>
+
+  <Accordion title="Pin/Unpin Extension">
+    Pin an extension to show it in the browser toolbar:
+
+    ```typescript
+    const success = await window.flow.extensions.setPinned(extensionId, true);
+    ```
+
+    Implementation at `src/main/ipc/app/extensions.ts:168-180`.
+  </Accordion>
+
+  <Accordion title="Uninstall Extension">
+    Remove an extension from the profile:
+
+    ```typescript
+    const success = await window.flow.extensions.uninstall(extensionId);
+    ```
+
+    Shows a confirmation dialog before uninstalling at `src/main/ipc/app/extensions.ts:129-164`.
+  </Accordion>
+</AccordionGroup>
+
+## Extension Manager
+
+Each loaded profile has its own `ExtensionManager` instance managed by the `LoadedProfilesController`. The extension manager handles:
+
+- Loading extensions from disk
+- Managing extension state (enabled/disabled/pinned)
+- Registering extensions with Electron's extension APIs
+- Handling extension updates
+
+### Extension Icons
+
+Extension icons are served via a custom protocol:
+
+```typescript
+const iconURL = new URL('flow://extension-icon');
+iconURL.searchParams.set('id', extensionId);
+iconURL.searchParams.set('profile', profileId);
+```
+
+The protocol handler extracts the icon from the extension's manifest and serves it.
+
+## Manifest String Localization
+
+Extensions can use locale strings in their manifests. Flow Browser automatically translates these:
+
+```typescript
+function translateManifestString(extensionPath: string, str: string) {
+  const re = /^__MSG_(.+?)__$/;
+  const match = str.match(re);
+  if (!match) return str;
+  
+  const [, key] = match;
+  return transformStringToLocale(extensionPath, key);
+}
+```
+
+Implementation at `src/main/ipc/app/extensions.ts:17-24`.
+
+## Permission Warnings
+
+When extensions request permissions, Flow Browser displays human-readable warnings:
+
+```typescript
+const permissions: string[] = getPermissionWarnings(
+  manifest.permissions ?? [],
+  manifest.host_permissions ?? []
+);
+```
+
+This helps users understand what access they're granting to extensions.
+
+## Extension Events
+
+The extension system emits events when extensions change:
+
+```typescript
+export async function fireOnExtensionsUpdated(profileId: string) {
+  const extensions = await getExtensionDataFromProfile(profileId);
+  sendMessageToListeners('extensions:on-updated', profileId, extensions);
+}
+```
+
+This ensures the UI stays synchronized when extensions are installed, removed, or modified.
+
+## Tab Integration
+
+Extensions are integrated with the tab system. When tabs are created or updated:
+
+```typescript
+// Register tab with extensions on creation
+const extensions = this.loadedProfile.extensions;
+extensions.addTab(webContents, this.window.browserWindow);
+
+// Notify extensions on tab updates
+this.on('updated', () => {
+  if (!this.webContents) return;
+  extensions.tabUpdated(this.webContents);
+});
+```
+
+From `src/main/controllers/tabs-controller/tab.ts:331-397`.
+
+## Extension Storage Location
+
+Extensions are stored within each profile's directory:
+
+```
+Profiles/
+  main/
+    Extensions/
+      {extension-id}/
+        {version}/
+          manifest.json
+          ...
+```
+
+This ensures complete isolation between profiles.
+
+## Extension Installation
+
+<Note>
+  Extension installation from the Chrome Web Store is handled through Electron's built-in extension APIs. The exact installation flow depends on the `ExtensionManager` implementation.
+</Note>
+
+## Uninstallation Confirmation
+
+When uninstalling an extension, Flow Browser shows a native confirmation dialog:
+
+```typescript
+const returnValue = await dialog.showMessageBox(window.browserWindow, {
+  icon: extensionIcon ?? undefined,
+  title: 'Uninstall Extension',
+  message: `Are you sure you want to uninstall "${extensionName}"?`,
+  buttons: ['Cancel', 'Uninstall']
+});
+
+if (returnValue.response === 0) {
+  return false; // User cancelled
+}
+
+return await extensionsManager.uninstallExtension(extensionId);
+```
+
+From `src/main/ipc/app/extensions.ts:152-163`.
+
+## Extension Size Calculation
+
+The extension system calculates the total size of installed extensions:
+
+```typescript
+const size = await getExtensionSize(extensionPath);
+```
+
+This helps users manage disk space usage.
+
+## Current Profile Detection
+
+Extension operations automatically detect the current profile from the window's Space:
+
+```typescript
+async function getCurrentProfileIdFromWebContents(webContents: WebContents): Promise<string | null> {
+  const window = browserWindowsController.getWindowFromWebContents(webContents);
+  if (!window) return null;
+  
+  const spaceId = window.currentSpaceId;
+  if (!spaceId) return null;
+  
+  const space = await spacesController.get(spaceId);
+  if (!space) return null;
+  
+  return space.profileId;
+}
+```
+
+From `src/main/ipc/app/extensions.ts:89-100`.
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Review Permissions" icon="shield-exclamation">
+    Always review what permissions an extension requests before installing
+  </Card>
+  
+  <Card title="Use Per-Profile" icon="user-circle">
+    Install extensions only in profiles where you need them
+  </Card>
+  
+  <Card title="Keep Updated" icon="arrow-clockwise">
+    Regularly update extensions for security and features
+  </Card>
+  
+  <Card title="Minimize Extensions" icon="minus-circle">
+    Only install extensions you actively use to reduce memory usage
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<Accordion title="Extension Not Loading">
+  If an extension isn't loading:
+  
+  1. Check if it's enabled in Settings
+  2. Verify the extension is compatible with your Electron/Chromium version
+  3. Check the console for error messages
+  4. Try uninstalling and reinstalling the extension
+</Accordion>
+
+<Accordion title="Extension Permissions">
+  If an extension requests unexpected permissions:
+  
+  - Review the permission warnings before approving
+  - Research the extension's reputation
+  - Consider alternative extensions with fewer permissions
+  - Contact the extension developer for clarification
+</Accordion>
+
+## Related Features
+
+- [Profiles](/features/profiles) - Extensions are installed per-profile
+- [Tabs](/features/tabs) - Extensions can interact with tabs
+- [Privacy](/features/privacy) - Extension permissions affect privacy

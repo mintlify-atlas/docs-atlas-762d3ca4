@@ -1,0 +1,423 @@
+---
+title: 'Tab'
+description: 'Manages individual browser tabs with web content, state, and lifecycle'
+---
+
+The `Tab` class represents a single tab within Flow Browser. It encapsulates an Electron `WebContentsView`, manages state (URL, title, loading status, audio), handles layout, and coordinates lifecycle events like sleep/wake.
+
+## Overview
+
+Each Tab instance:
+
+- Manages a `WebContentsView` and `WebContents` for rendering web pages
+- Tracks state: URL, title, loading, audio, favicon, visibility
+- Supports different layouts (normal, glance, split)
+- Handles lifecycle: creation, sleep/wake, and destruction
+- Emits events for focus changes, updates, and destruction
+
+## Creating a Tab
+
+Tabs are created through the `TabsController`:
+
+```typescript
+import { tabsController } from '@/controllers/tabs-controller';
+
+// Create a new tab
+const tab = await tabsController.createTab(
+  windowId,
+  'profile-id',
+  'space-id',
+  undefined,
+  { url: 'https://example.com' }
+);
+```
+
+### TabCreationDetails
+
+Required details passed to the Tab constructor:
+
+<ParamField path="tabsController" type="TabsController" required>
+  The TabsController instance managing this tab
+</ParamField>
+
+<ParamField path="profileId" type="string" required>
+  ID of the user profile associated with this tab
+</ParamField>
+
+<ParamField path="spaceId" type="string" required>
+  ID of the space this tab belongs to
+</ParamField>
+
+<ParamField path="session" type="Session" required>
+  Electron Session object for this tab's web content
+</ParamField>
+
+<ParamField path="loadedProfile" type="LoadedProfile" required>
+  The loaded profile instance
+</ParamField>
+
+### TabCreationOptions
+
+Optional configuration for tab creation:
+
+<ParamField path="window" type="BrowserWindow" required>
+  The window to attach the tab to
+</ParamField>
+
+<ParamField path="uniqueId" type="string">
+  Custom unique ID (auto-generated if not provided)
+</ParamField>
+
+<ParamField path="webContentsViewOptions" type="WebContentsViewConstructorOptions">
+  Electron WebContentsView customization options
+</ParamField>
+
+<ParamField path="url" type="string">
+  Initial URL to load
+</ParamField>
+
+<ParamField path="asleep" type="boolean">
+  Whether to create the tab in sleep mode (no WebContents, saves memory)
+</ParamField>
+
+<ParamField path="position" type="number">
+  Tab position in the tab strip
+</ParamField>
+
+<ParamField path="title" type="string">
+  Restored title (for sleeping tabs)
+</ParamField>
+
+<ParamField path="faviconURL" type="string">
+  Restored favicon URL
+</ParamField>
+
+<ParamField path="navHistory" type="NavigationEntry[]">
+  Navigation history to restore
+</ParamField>
+
+<ParamField path="navHistoryIndex" type="number">
+  Active index in navigation history
+</ParamField>
+
+## Properties
+
+### Identity & Organization
+
+<ResponseField name="id" type="number">
+  Unique tab ID (stable across sleep/wake cycles)
+</ResponseField>
+
+<ResponseField name="uniqueId" type="string">
+  Persistent unique identifier
+</ResponseField>
+
+<ResponseField name="profileId" type="string">
+  Associated profile ID (readonly)
+</ResponseField>
+
+<ResponseField name="spaceId" type="string">
+  Associated space ID (can be changed with `setSpace()`)
+</ResponseField>
+
+<ResponseField name="groupId" type="string | null">
+  ID of the tab group this tab belongs to (if any)
+</ResponseField>
+
+### State Properties
+
+<ResponseField name="visible" type="boolean">
+  Whether the tab's view is currently visible
+</ResponseField>
+
+<ResponseField name="isDestroyed" type="boolean">
+  Whether the tab has been destroyed
+</ResponseField>
+
+<ResponseField name="asleep" type="boolean">
+  Whether the tab is in sleep mode (no WebContents to save memory)
+</ResponseField>
+
+<ResponseField name="fullScreen" type="boolean">
+  Whether the tab is in fullscreen mode
+</ResponseField>
+
+<ResponseField name="isPictureInPicture" type="boolean">
+  Whether the tab has an active picture-in-picture window
+</ResponseField>
+
+<ResponseField name="position" type="number">
+  Tab position in the tab strip
+</ResponseField>
+
+<ResponseField name="lastActiveAt" type="number">
+  Timestamp when tab was last active
+</ResponseField>
+
+### Content Properties
+
+<ResponseField name="title" type="string">
+  Current page title (default: "New Tab")
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  Current page URL
+</ResponseField>
+
+<ResponseField name="isLoading" type="boolean">
+  Whether the page is currently loading
+</ResponseField>
+
+<ResponseField name="faviconURL" type="string | null">
+  URL of the current favicon
+</ResponseField>
+
+<ResponseField name="audible" type="boolean">
+  Whether the tab is playing audio
+</ResponseField>
+
+<ResponseField name="muted" type="boolean">
+  Whether the tab's audio is muted
+</ResponseField>
+
+<ResponseField name="navHistory" type="NavigationEntry[]">
+  Navigation history entries
+</ResponseField>
+
+<ResponseField name="navHistoryIndex" type="number">
+  Current index in navigation history
+</ResponseField>
+
+### View Objects
+
+<ResponseField name="view" type="PatchedWebContentsView | null">
+  The Electron WebContentsView instance (null when tab is asleep)
+</ResponseField>
+
+<ResponseField name="webContents" type="WebContents | null">
+  The Electron WebContents instance (null when tab is asleep)
+</ResponseField>
+
+## Methods
+
+### Navigation
+
+<ParamField path="loadURL" type="(url: string, replace?: boolean) => void">
+  Loads a URL in the tab
+  
+  **Parameters:**
+  - `url`: URL to load
+  - `replace`: If true, replaces current history entry instead of creating new one
+  
+  ```typescript
+  tab.loadURL('https://example.com');
+  tab.loadURL('https://example.com', true); // Replace history
+  ```
+</ParamField>
+
+<ParamField path="loadErrorPage" type="(errorCode: number, url: string) => void">
+  Loads a custom error page for the given error code and URL
+  
+  ```typescript
+  tab.loadErrorPage(-105, 'https://invalid-url.com');
+  ```
+</ParamField>
+
+### Window & Space Management
+
+<ParamField path="setWindow" type="(window: BrowserWindow, index?: number) => void">
+  Attaches the tab's view to a window or moves it to a different window
+  
+  **Parameters:**
+  - `window`: Target window
+  - `index`: View layer index (default: ViewLayer.TAB)
+  
+  ```typescript
+  tab.setWindow(newWindow);
+  ```
+</ParamField>
+
+<ParamField path="getWindow" type="() => BrowserWindow">
+  Returns the current window for the tab
+</ParamField>
+
+<ParamField path="setSpace" type="(spaceId: string) => void">
+  Changes the space assignment for the tab
+  
+  ```typescript
+  tab.setSpace('work-space');
+  ```
+</ParamField>
+
+### Visibility
+
+<ParamField path="show" type="() => void">
+  Makes the tab's view visible
+</ParamField>
+
+<ParamField path="hide" type="() => void">
+  Hides the tab's view
+</ParamField>
+
+### State Updates
+
+<ParamField path="updateTabState" type="() => boolean">
+  Reads current state from webContents and emits 'updated' event if anything changed
+  
+  Returns true if state changed, false otherwise.
+  
+  ```typescript
+  const changed = tab.updateTabState();
+  ```
+</ParamField>
+
+<ParamField path="scheduleUpdateTabState" type="() => void">
+  Schedules an updateTabState() call via queueMicrotask. Multiple calls are coalesced.
+</ParamField>
+
+<ParamField path="updateStateProperty" type="<T>(property: TabStateProperty, newValue: T) => boolean">
+  Updates a single state property with change detection and emits 'updated' event
+</ParamField>
+
+### View Lifecycle
+
+<ParamField path="initializeView" type="() => void">
+  Creates the WebContentsView, sets up listeners, and registers with extensions. Called on wake from sleep.
+</ParamField>
+
+<ParamField path="teardownView" type="() => void">
+  Destroys the WebContentsView and frees resources. Called when putting tab to sleep.
+</ParamField>
+
+<ParamField path="restoreNavigationHistory" type="(navHistory: NavigationEntry[], navHistoryIndex: number) => void">
+  Restores navigation history on the current webContents
+</ParamField>
+
+<ParamField path="applyUrlBackground" type="() => void">
+  Applies the correct background color based on the current URL (transparent for internal protocols)
+</ParamField>
+
+### Destruction
+
+<ParamField path="destroy" type="() => void">
+  Destroys the tab and cleans up resources. Emits 'destroyed' event.
+  
+  ```typescript
+  tab.destroy();
+  ```
+</ParamField>
+
+## Events
+
+The Tab class extends `TypedEventEmitter` and emits:
+
+<ResponseField name="focused" type="[]">
+  Emitted when the tab's webContents gains focus
+  
+  ```typescript
+  tab.on('focused', () => {
+    console.log('Tab focused');
+  });
+  ```
+</ResponseField>
+
+<ResponseField name="updated" type="[TabPublicProperty[]]">
+  Emitted when tab state changes (title, URL, loading status, favicon, visibility, etc.)
+  
+  ```typescript
+  tab.on('updated', (changedProperties) => {
+    console.log('Changed properties:', changedProperties);
+  });
+  ```
+</ResponseField>
+
+<ResponseField name="destroyed" type="[]">
+  Emitted when the tab is destroyed
+  
+  ```typescript
+  tab.on('destroyed', () => {
+    console.log('Tab destroyed');
+  });
+  ```
+</ResponseField>
+
+<ResponseField name="space-changed" type="[]">
+  Emitted when the tab's space assignment changes
+</ResponseField>
+
+<ResponseField name="window-changed" type="[oldWindowId: number]">
+  Emitted when the tab moves to a different window
+</ResponseField>
+
+<ResponseField name="fullscreen-changed" type="[boolean]">
+  Emitted when fullscreen state changes
+</ResponseField>
+
+<ResponseField name="new-tab-requested" type="[url: string, disposition: string, options?: WebContentsViewConstructorOptions, details?: HandlerDetails]">
+  Emitted when the page requests opening a new tab (e.g., target="_blank" links)
+</ResponseField>
+
+## Sleep Mode
+
+Tabs can be put to sleep to save memory (~20-50MB per sleeping tab):
+
+```typescript
+const managers = tabsController.getTabManagers(tab.id);
+managers?.lifecycle.putToSleep();
+```
+
+When asleep:
+- `tab.view` and `tab.webContents` are `null`
+- Visual state (title, URL, favicon) is preserved
+- Navigation history is stored
+
+Wake from sleep:
+
+```typescript
+managers?.lifecycle.wakeFromSleep();
+```
+
+The tab automatically recreates the WebContentsView and restores navigation history.
+
+## Example: Managing Tab State
+
+```typescript
+import { tabsController } from '@/controllers/tabs-controller';
+
+// Create tab
+const tab = await tabsController.createTab();
+
+// Listen for updates
+tab.on('updated', (properties) => {
+  if (properties.includes('title')) {
+    console.log('Title changed:', tab.title);
+  }
+  if (properties.includes('url')) {
+    console.log('URL changed:', tab.url);
+  }
+});
+
+// Load URL
+tab.loadURL('https://example.com');
+
+// Check loading state
+if (tab.isLoading) {
+  console.log('Page is loading...');
+}
+
+// Mute audio
+if (tab.audible && tab.webContents) {
+  tab.webContents.setAudioMuted(true);
+}
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Browser" icon="globe" href="/api/browser">
+    Learn about browser controllers
+  </Card>
+  <Card title="Window" icon="window" href="/api/window">
+    Learn about BrowserWindow
+  </Card>
+</CardGroup>

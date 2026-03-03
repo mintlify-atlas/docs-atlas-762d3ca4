@@ -1,0 +1,276 @@
+---
+title: 'Building'
+description: 'Build Flow Browser for production deployment'
+---
+
+## Build Process
+
+Flow Browser uses `electron-builder` to package the application for distribution. The build process compiles TypeScript, bundles assets, and creates platform-specific installers.
+
+## Quick Build Commands
+
+<CodeGroup>
+  ```bash Windows
+  bun build:win
+  ```
+
+  ```bash macOS
+  bun build:mac
+  ```
+
+  ```bash Linux
+  bun build:linux
+  ```
+</CodeGroup>
+
+<Info>
+  Build output will be in the `./dist` directory.
+</Info>
+
+## Build Steps
+
+<Steps>
+  <Step title="Type Checking">
+    The build process starts by running TypeScript type checks:
+    
+    ```bash
+    bun run typecheck
+    ```
+    
+    This runs two separate type checks:
+    - `typecheck:node` - Main process and Node.js code
+    - `typecheck:web` - Renderer process and web code
+  </Step>
+
+  <Step title="Vite Build">
+    electron-vite compiles and bundles the application:
+    
+    ```bash
+    cross-env PRODUCTION_BUILD=true electron-vite build
+    ```
+    
+    This:
+    - Compiles TypeScript to JavaScript
+    - Bundles renderer code with Vite
+    - Optimizes assets and code
+    - Generates source maps
+  </Step>
+
+  <Step title="Frontend Routes Pruning">
+    Removes development-only routes:
+    
+    ```bash
+    bun run script:prune-frontend-routes
+    ```
+  </Step>
+
+  <Step title="electron-builder Packaging">
+    Packages the app for the target platform:
+    
+    - Creates installers (Windows)
+    - Builds DMG files (macOS)
+    - Generates AppImage/deb/rpm (Linux)
+  </Step>
+</Steps>
+
+## Platform-Specific Builds
+
+### Windows
+
+```bash
+bun build:win
+```
+
+**Output files** in `./dist`:
+- `Flow-{version}-setup.exe` - NSIS installer
+- `Flow-{version}-win.zip` - Portable version
+
+<Note>
+  Windows builds can be created on Windows, macOS, or Linux.
+</Note>
+
+### macOS
+
+```bash
+bun build:mac
+```
+
+**Output files** in `./dist`:
+- `Flow-{version}.dmg` - Disk image installer
+- `Flow-{version}-mac.zip` - Zip archive
+
+<Warning>
+  macOS builds **must** be created on macOS due to code signing requirements.
+</Warning>
+
+### Linux
+
+```bash
+bun build:linux
+```
+
+**Output files** in `./dist`:
+- `Flow-{version}.AppImage` - Universal Linux binary
+- `Flow-{version}.deb` - Debian/Ubuntu package
+- `Flow-{version}.rpm` - Fedora/RHEL package
+
+<Note>
+  Linux builds can be created on Linux, macOS, or Windows (with WSL).
+</Note>
+
+## Development Builds
+
+For testing the build process without creating installers:
+
+```bash
+bun build:unpack
+```
+
+This builds the app and unpacks it to `./dist/{platform}-unpacked` without creating installers. Useful for:
+- Testing production builds locally
+- Debugging build issues
+- Inspecting bundled files
+
+## Build Configuration
+
+Build settings are configured in `package.json` under the `build` key:
+
+```json
+{
+  "build": {
+    "appId": "com.multiboxlabs.flow",
+    "productName": "Flow",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ]
+  }
+}
+```
+
+## Widevine VMP Signing
+
+<Warning>
+  For production builds with full DRM support, you need Widevine VMP signing.
+</Warning>
+
+### What is VMP Signing?
+
+Widevine Verified Media Path (VMP) signing ensures your browser can play DRM-protected content from streaming services like Netflix, Spotify, and Disney+.
+
+### Setup Process
+
+<Steps>
+  <Step title="Create EVS Account">
+    Sign up for a Castlabs EVS (Electron Video Services) account:
+    
+    [Create EVS Account](https://github.com/castlabs/electron-releases/wiki/EVS#creating-an-evs-account)
+  </Step>
+
+  <Step title="Configure Credentials">
+    Add your EVS credentials to your build environment:
+    
+    ```bash
+    export CASTLABS_EVS_USERNAME="your-username"
+    export CASTLABS_EVS_PASSWORD="your-password"
+    ```
+  </Step>
+
+  <Step title="Build with Signing">
+    The build pipeline will automatically VMP-sign your application when credentials are present.
+    
+    Signed builds will have full Widevine DRM support.
+  </Step>
+</Steps>
+
+<Info>
+  Development builds work without VMP signing, but DRM content playback may be limited.
+</Info>
+
+## Build Troubleshooting
+
+### Native Module Errors
+
+If you encounter native module build errors:
+
+```bash
+# Rebuild native modules for Electron
+electron-builder install-app-deps
+```
+
+### Build Cache Issues
+
+Clear build artifacts and rebuild:
+
+```bash
+bun run reset
+bun install
+bun build:linux  # or your target platform
+```
+
+The `reset` script removes:
+- `dist/` - Build output
+- `out/` - Compiled code
+- `node_modules/` - Dependencies
+- `.yalc/` - Local package links
+- Package manager cache
+
+### Type Check Failures
+
+Fix type errors before building:
+
+```bash
+# Check for type errors
+bun typecheck
+
+# Check specific processes
+bun run typecheck:node  # Main process
+bun run typecheck:web   # Renderer process
+```
+
+## CI/CD Builds
+
+For automated builds in CI/CD pipelines:
+
+```bash
+# Install dependencies
+bun install
+
+# Run all checks
+bun run lint
+bun run typecheck
+bun run format
+
+# Build for target platform
+bun run build
+bun run build:linux  # or :win, :mac
+```
+
+<Note>
+  The `postinstall` script automatically rebuilds native modules during `bun install`, so no manual rebuild is needed in CI.
+</Note>
+
+## Build Scripts Reference
+
+| Script | Command | Description |
+| ------ | ------- | ----------- |
+| `build` | `bun run build` | Compile source (no packaging) |
+| `build:unpack` | `bun build:unpack` | Build and unpack (no installer) |
+| `build:win` | `bun build:win` | Build Windows installer |
+| `build:mac` | `bun build:mac` | Build macOS DMG |
+| `build:linux` | `bun build:linux` | Build Linux packages |
+| `reset` | `bun run reset` | Clean all build artifacts |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Contributing" icon="code-pull-request" href="/development/contributing">
+    Learn how to contribute to Flow Browser
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/development/architecture">
+    Understand the codebase structure
+  </Card>
+</CardGroup>

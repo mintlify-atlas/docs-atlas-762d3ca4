@@ -1,0 +1,480 @@
+---
+title: 'Tab Management'
+description: 'Tab display, grouping, and drag-and-drop system for the browser sidebar'
+---
+
+## Overview
+
+Flow Browser's tab management system displays tabs in vertical groups within the sidebar, supporting drag-and-drop reordering, audio indicators, and multi-space organization.
+
+## Tab Data Structure
+
+### TabData Interface
+
+```typescript
+interface TabData {
+  id: number;
+  title: string;
+  url: string;
+  faviconURL: string | null;
+  loading: boolean;
+  audible: boolean;
+  muted: boolean;
+  asleep: boolean;
+  // ... additional properties
+}
+```
+
+### TabGroup Structure
+
+```typescript
+interface TabGroup {
+  id: string;
+  tabs: TabData[];
+  focusedTab: TabData | null;
+  profileId: string;
+  spaceId: string;
+}
+```
+
+## SidebarTab Component
+
+Individual tab display within the sidebar.
+
+**Location**: `src/renderer/src/components/browser-ui/browser-sidebar/_components/tab-group.tsx:26`
+
+```tsx
+import { SidebarTab } from "@/components/browser-ui/browser-sidebar/_components/tab-group";
+
+<SidebarTab tab={tabData} isFocused={true} />
+```
+
+### Props
+
+<ParamField path="tab" type="TabData" required>
+  The tab data object containing title, URL, favicon, etc.
+</ParamField>
+
+<ParamField path="isFocused" type="boolean" required>
+  Whether this tab is currently focused/active
+</ParamField>
+
+### Features
+
+<AccordionGroup>
+  <Accordion title="Favicon Display">
+    ```tsx
+    {!noFavicon && (
+      <img
+        src={craftActiveFaviconURL(tab.id, tab.faviconURL)}
+        alt={tab.title}
+        className={cn(
+          "size-full rounded-sm object-contain",
+          tab.asleep && "grayscale"
+        )}
+        onError={() => setIsError(true)}
+      />
+    )}
+    {noFavicon && (
+      <div className="size-full bg-gray-300 dark:bg-gray-300/30 rounded-sm" />
+    )}
+    ```
+    
+    - Caches favicon URL to prevent flicker
+    - Shows gray square fallback on error
+    - Applies grayscale filter for sleeping tabs
+  </Accordion>
+
+  <Accordion title="Audio Indicator">
+    ```tsx
+    <AnimatePresence initial={false}>
+      {(isPlayingAudio || isMuted) && (
+        <motion.button
+          initial={{ opacity: 0, scale: 0.8, width: 0 }}
+          animate={{ opacity: 1, scale: 1, width: "auto" }}
+          exit={{ opacity: 0, scale: 0.8, width: 0 }}
+          onClick={handleToggleMute}
+        >
+          {isMuted ? <VolumeX /> : <Volume2 />}
+        </motion.button>
+      )}
+    </AnimatePresence>
+    ```
+    
+    - Smooth spring animation for show/hide
+    - Click to toggle mute state
+    - Shows VolumeX when muted, Volume2 when playing
+  </Accordion>
+
+  <Accordion title="Close Button">
+    ```tsx
+    <button
+      className={cn(
+        "size-5.5 rounded-sm",
+        "hover:bg-black/10 dark:hover:bg-white/10",
+        "opacity-0 pointer-events-none",
+        "group-hover/tab:opacity-100 group-hover/tab:pointer-events-auto"
+      )}
+      onClick={handleCloseTab}
+    >
+      <XIcon className="size-4.5" />
+    </button>
+    ```
+    
+    - Visible only on tab hover
+    - Prevents parent click event propagation
+  </Accordion>
+</AccordionGroup>
+
+### Interactions
+
+**Mouse Events**:
+
+```typescript
+const handleMouseDown = useCallback((e: React.MouseEvent) => {
+  if (e.button === 0) {
+    // Left click - switch to tab
+    flow.tabs.switchToTab(tab.id);
+  }
+  if (e.button === 1) {
+    // Middle click - close tab
+    flow.tabs.closeTab(tab.id);
+  }
+}, [tab.id]);
+
+const handleContextMenu = useCallback((e: React.MouseEvent) => {
+  e.preventDefault();
+  flow.tabs.showContextMenu(tab.id);
+}, [tab.id]);
+```
+
+### Memoization
+
+SidebarTab uses `React.memo` with custom comparison:
+
+```typescript
+const SidebarTab = memo(
+  function SidebarTab({ tab, isFocused }) {
+    // Component implementation
+  },
+  (prev, next) => {
+    // Only re-render if focus state or tab reference changes
+    return prev.isFocused === next.isFocused && prev.tab === next.tab;
+  }
+);
+```
+
+## TabGroup Component
+
+Container for a group of tabs with drag-and-drop support.
+
+**Location**: `src/renderer/src/components/browser-ui/browser-sidebar/_components/tab-group.tsx:190`
+
+```tsx
+import { TabGroup } from "@/components/browser-ui/browser-sidebar/_components/tab-group";
+
+<TabGroup
+  tabGroup={tabGroup}
+  isActive={true}
+  isFocused={true}
+  isSpaceLight={true}
+  position={0}
+  groupCount={5}
+  moveTab={moveTabHandler}
+/>
+```
+
+### Props
+
+<ParamField path="tabGroup" type="TabGroupType" required>
+  The tab group object containing tabs array and metadata
+</ParamField>
+
+<ParamField path="isActive" type="boolean" required>
+  Whether this group contains the active tab
+</ParamField>
+
+<ParamField path="isFocused" type="boolean" required>
+  Whether this group is in the focused window/space
+</ParamField>
+
+<ParamField path="isSpaceLight" type="boolean" required>
+  Whether the current space uses a light theme
+</ParamField>
+
+<ParamField path="position" type="number" required>
+  Position index for drag-and-drop ordering
+</ParamField>
+
+<ParamField path="groupCount" type="number" required>
+  Total number of tab groups
+</ParamField>
+
+<ParamField path="moveTab" type="(tabId: number, newPosition: number) => void" required>
+  Callback to move a tab to a new position
+</ParamField>
+
+## Drag and Drop System
+
+Flow Browser uses `@atlaskit/pragmatic-drag-and-drop` for tab reordering.
+
+### Source Data
+
+When dragging a tab group:
+
+```typescript
+export type TabGroupSourceData = {
+  type: "tab-group";
+  tabGroupId: string;
+  primaryTabId: number;
+  profileId: string;
+  spaceId: string;
+  position: number;
+};
+```
+
+### Draggable Setup
+
+```typescript
+const draggableCleanup = draggable({
+  element: el,
+  getInitialData: () => ({
+    type: "tab-group",
+    tabGroupId: tabGroup.id,
+    primaryTabId: tabs[0]?.id,
+    profileId: tabGroup.profileId,
+    spaceId: tabGroup.spaceId,
+    position: position
+  })
+});
+```
+
+### Drop Target
+
+```typescript
+const cleanupDropTarget = dropTargetForElements({
+  element: el,
+  getData: ({ input, element }) => {
+    return attachClosestEdge({}, {
+      input,
+      element,
+      allowedEdges: ["top", "bottom"]
+    });
+  },
+  canDrop: (args) => {
+    const sourceData = args.source.data as TabGroupSourceData;
+    
+    // Prevent dropping on self
+    if (sourceData.tabGroupId === tabGroup.id) {
+      return false;
+    }
+    
+    // Only allow same profile
+    if (sourceData.profileId !== tabGroup.profileId) {
+      return false;
+    }
+    
+    return true;
+  },
+  onDrop: (args) => {
+    const edge = extractClosestEdge(args.self.data);
+    const sourceData = args.source.data as TabGroupSourceData;
+    
+    let newPos: number | undefined;
+    
+    if (edge === "top") {
+      newPos = position - 0.5;
+    } else if (edge === "bottom") {
+      newPos = position + 0.5;
+    }
+    
+    if (sourceData.spaceId !== tabGroup.spaceId) {
+      flow.tabs.moveTabToWindowSpace(
+        sourceData.primaryTabId,
+        tabGroup.spaceId,
+        newPos
+      );
+    } else if (newPos !== undefined) {
+      moveTab(sourceData.primaryTabId, newPos);
+    }
+  }
+});
+```
+
+### Drop Indicator
+
+Visual feedback during drag:
+
+```tsx
+{closestEdge === "top" && (
+  <div className="absolute top-0 left-0 right-0 -translate-y-1/2 z-elevated">
+    <DropIndicator isSpaceLight={isSpaceLight} />
+  </div>
+)}
+
+{closestEdge === "bottom" && (
+  <div className="absolute bottom-0 left-0 right-0 translate-y-1/2 z-elevated">
+    <DropIndicator isSpaceLight={isSpaceLight} />
+  </div>
+)}
+```
+
+**DropIndicator Component** (`drop-indicator.tsx`):
+```tsx
+export function DropIndicator({ isSpaceLight }: { isSpaceLight: boolean }) {
+  return (
+    <div className={cn(
+      "h-0.5 rounded-full",
+      isSpaceLight ? "bg-black/30" : "bg-white/30"
+    )} />
+  );
+}
+```
+
+## Animation System
+
+### Layout Animations
+
+Tab groups use Framer Motion for smooth transitions:
+
+```tsx
+<motion.div
+  layout="position"
+  initial={{ opacity: 0, height: 0 }}
+  animate={{
+    opacity: 1,
+    height: "auto",
+    transitionEnd: { overflow: "visible" }
+  }}
+  exit={{ opacity: 0, height: 0, overflow: "hidden" }}
+  transition={{
+    layout: { type: "spring", stiffness: 500, damping: 35 },
+    height: { type: "tween", duration: 0.2, ease: "easeOut" },
+    opacity: { duration: 0.15 }
+  }}
+>
+  {tabs.map((tab) => (
+    <SidebarTab key={tab.id} tab={tab} isFocused={isFocused} />
+  ))}
+</motion.div>
+```
+
+### Tab Press Animation
+
+```tsx
+<motion.div
+  whileTap={{ scale: 0.99 }}
+  transition={{ scale: { type: "spring", stiffness: 600, damping: 20 } }}
+>
+  {/* Tab content */}
+</motion.div>
+```
+
+## Flow API Integration
+
+### Tab Operations
+
+```typescript
+// Switch to a tab
+flow.tabs.switchToTab(tabId: number): void
+
+// Close a tab
+flow.tabs.closeTab(tabId: number): void
+
+// Toggle mute state
+flow.tabs.setTabMuted(tabId: number, muted: boolean): void
+
+// Show context menu
+flow.tabs.showContextMenu(tabId: number): void
+
+// Move tab to different space
+flow.tabs.moveTabToWindowSpace(
+  tabId: number,
+  spaceId: string,
+  position?: number
+): void
+```
+
+### Tab Providers
+
+The tab system uses React Context for state management:
+
+```tsx
+import { 
+  TabsProvider,
+  useFocusedTab,
+  useFocusedTabId,
+  useFocusedTabLoading,
+  useTabsGroups 
+} from "@/components/providers/tabs-provider";
+
+function MyComponent() {
+  const focusedTab = useFocusedTab();
+  const { tabGroups } = useTabsGroups();
+  
+  // Use tab data
+}
+```
+
+## Styling
+
+### Tab States
+
+```tsx
+className={cn(
+  "group/tab h-9 w-full rounded-lg",
+  "flex items-center gap-2 px-2",
+  "transition-[background-color]",
+  !isFocused && "hover:bg-black/10 dark:hover:bg-white/10",
+  isFocused && "bg-white/90 dark:bg-white/15"
+)}
+```
+
+### Dark Mode Support
+
+All tab components respond to the current space theme:
+
+```tsx
+const { isCurrentSpaceLight } = useSpaces();
+
+<div className={cn(
+  "text-black dark:text-white",
+  !isCurrentSpaceLight && "dark"
+)}>
+  {/* Content */}
+</div>
+```
+
+## Performance Optimizations
+
+### Stable References
+
+The TabsProvider maintains stable tab object references:
+
+```typescript
+// Tab objects only change when their data actually changes
+// This allows React.memo to work effectively
+const memoizedComparison = (prev, next) => {
+  return prev.tab === next.tab && prev.isFocused === next.isFocused;
+};
+```
+
+### Effect Dependencies
+
+Drag-and-drop effects use stable primitives:
+
+```typescript
+const primaryTabId = tabs[0]?.id;
+
+useEffect(() => {
+  // Setup drag and drop
+}, [moveTab, tabGroup.id, position, primaryTabId, tabGroup.spaceId, tabGroup.profileId]);
+```
+
+This prevents effect re-runs when tab array reference changes but IDs remain the same.
+
+## Related Components
+
+- [Browser Sidebar](/components/sidebar) - Container for tab groups
+- [Browser UI](/components/browser-ui) - Main layout
+- Tab providers in `src/renderer/src/components/providers/tabs-provider.tsx`

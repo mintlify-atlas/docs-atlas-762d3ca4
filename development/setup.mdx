@@ -1,0 +1,165 @@
+---
+title: 'Development Setup'
+description: 'Get your development environment ready for contributing to Flow Browser'
+---
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed on your system:
+
+<CardGroup cols={2}>
+  <Card title="Node.js v22+" icon="node-js" iconType="duotone">
+    Download from [nodejs.org](https://nodejs.org/en/download)
+  </Card>
+  <Card title="Bun v1.2.0+" icon="package" iconType="duotone">
+    Install from [bun.sh](https://bun.sh/docs/installation)
+  </Card>
+</CardGroup>
+
+### System Dependencies
+
+<Warning>
+  Electron uses `node-gyp` to build native modules. You need to install platform-specific dependencies for native module compilation.
+</Warning>
+
+<Tabs>
+  <Tab title="Linux">
+    Install build tools and Python:
+    ```bash
+    # Debian/Ubuntu
+    sudo apt-get install build-essential python3
+
+    # Fedora
+    sudo dnf install make gcc gcc-c++ python3
+
+    # Arch
+    sudo pacman -S base-devel python
+    ```
+  </Tab>
+  <Tab title="macOS">
+    Install Xcode Command Line Tools:
+    ```bash
+    xcode-select --install
+    ```
+  </Tab>
+  <Tab title="Windows">
+    Install Visual Studio Build Tools:
+    ```bash
+    npm install --global windows-build-tools
+    ```
+    Or manually install [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022)
+  </Tab>
+</Tabs>
+
+<Note>
+  For more details on node-gyp dependencies, see the [official installation guide](https://github.com/nodejs/node-gyp#installation).
+</Note>
+
+## Getting Started
+
+<Steps>
+  <Step title="Clone the Repository">
+    ```bash
+    git clone https://github.com/MultiboxLabs/flow-browser.git
+    cd flow-browser
+    ```
+  </Step>
+
+  <Step title="Install Dependencies">
+    ```bash
+    bun install
+    ```
+    
+    <Note>
+      The `postinstall` script will automatically run `electron-builder install-app-deps` to rebuild native modules for Electron.
+    </Note>
+  </Step>
+
+  <Step title="Start Development">
+    Choose your preferred development mode:
+
+    <CodeGroup>
+      ```bash Preview Mode
+      # Start the application in preview mode (no hot reload)
+      bun start
+      ```
+
+      ```bash Development Mode
+      # Development with hot reloading
+      bun dev
+      ```
+
+      ```bash Watch Mode (Recommended)
+      # Development with file watching and hot reloading
+      bun dev:watch
+      ```
+    </CodeGroup>
+  </Step>
+</Steps>
+
+## Development Workflow
+
+### Available Commands
+
+Here are the essential commands you'll use during development:
+
+| Task | Command | Description |
+| ---- | ------- | ----------- |
+| **Install dependencies** | `bun install` | Install all project dependencies |
+| **Development** | `bun dev` | Start development mode with hot reload |
+| **Watch mode** | `bun dev:watch` | Start with file watching (recommended) |
+| **Lint** | `bun lint` | Run ESLint to check code quality |
+| **Type check** | `bun typecheck` | Run TypeScript type checking |
+| **Format** | `bun format` | Format code with Prettier |
+| **Preview** | `bun start` | Start in preview mode (production-like) |
+
+### Before Committing
+
+<Warning>
+  Always run these commands before pushing changes to avoid CI failures:
+</Warning>
+
+```bash
+# Run all checks
+bun run lint
+bun run typecheck
+bun run format
+```
+
+## First Launch
+
+<Info>
+  On first launch, Flow Browser will show an onboarding wizard. You must complete this before the main browser window appears.
+</Info>
+
+## Troubleshooting
+
+### Native Module Build Failures
+
+If you encounter errors during `bun install` related to native modules:
+
+1. Ensure you have all system dependencies installed (see above)
+2. Try clearing the cache and reinstalling:
+   ```bash
+   bun run reset
+   bun install
+   ```
+
+### Electron Display Issues on Linux
+
+If running in a headless environment:
+
+- GLib-GObject and D-Bus warnings are harmless and can be ignored
+- The VM should have a display set (e.g., `DISPLAY=:1`)
+- No `xvfb-run` wrapper is needed in most cloud environments
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="sitemap" href="/development/architecture">
+    Learn about Flow Browser's architecture
+  </Card>
+  <Card title="Building" icon="hammer" href="/development/building">
+    Build Flow Browser for production
+  </Card>
+</CardGroup>

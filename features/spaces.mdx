@@ -1,0 +1,285 @@
+---
+title: Spaces
+description: Organize your tabs into separate workspaces within each profile
+icon: folder
+---
+
+Spaces are workspaces within a profile that let you organize tabs by project, topic, or context. Each Space has its own set of tabs, visual theme, and icon, making it easy to switch between different tasks.
+
+## Overview
+
+Spaces help you:
+
+<CardGroup cols={2}>
+  <Card title="Organize Tabs" icon="layer-group">
+    Group related tabs together by project or topic
+  </Card>
+  <Card title="Visual Separation" icon="palette">
+    Customize each Space with unique colors and icons
+  </Card>
+  <Card title="Quick Switching" icon="bolt">
+    Switch between Spaces with keyboard shortcuts (Ctrl+1-9)
+  </Card>
+  <Card title="Profile Isolation" icon="lock">
+    Each Space belongs to a specific profile
+  </Card>
+</CardGroup>
+
+## Creating and Managing Spaces
+
+<Steps>
+  <Step title="Access Space Management">
+    Open Settings (`Cmd/Ctrl + ,`) and navigate to the Spaces section
+  </Step>
+  
+  <Step title="Create a New Space">
+    Click "Create Space" and give it a descriptive name
+  </Step>
+  
+  <Step title="Customize Appearance">
+    Choose an icon from the Phosphor Icons library and set a background gradient
+  </Step>
+  
+  <Step title="Start Using">
+    Switch to your new Space and start opening tabs
+  </Step>
+</Steps>
+
+## Space Data Structure
+
+Each Space stores the following data (`src/main/controllers/spaces-controller/raw.ts`):
+
+```typescript
+interface SpaceData {
+  profileId: string;     // Parent profile ID
+  name: string;          // Display name
+  icon?: string;         // Phosphor icon name (PascalCase)
+  theme?: SpaceTheme;    // Visual customization
+  order: number;         // Sort order
+  lastUsed: number;      // Timestamp for auto-switching
+  createdAt: number;     // Creation timestamp
+}
+```
+
+## Switching Between Spaces
+
+### Keyboard Shortcuts
+
+Spaces can be quickly accessed using keyboard shortcuts:
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl + 1` | Switch to Space 1 |
+| `Ctrl + 2` | Switch to Space 2 |
+| `Ctrl + 3` | Switch to Space 3 |
+| ... | ... |
+| `Ctrl + 9` | Switch to Space 9 |
+
+<Note>
+  Shortcuts are generated in the application menu at `src/main/controllers/app-menu-controller/menu/items/spaces.ts:132`
+</Note>
+
+### Menu Access
+
+Spaces appear in the application menu with:
+- Visual icons (on macOS using SVG rendering)
+- Checkmark indicating the currently active Space
+- Keyboard accelerators displayed
+
+## Space Icons
+
+Spaces support icons from the [Phosphor Icons](https://phosphoricons.com/) library. The icon system:
+
+- Uses duotone style icons
+- Converts PascalCase names to icon paths
+- Renders as white SVG on macOS menu items
+- Falls back to "dot-outline" if icon not found
+
+### Icon Implementation
+
+The icon rendering is handled at `src/main/controllers/app-menu-controller/menu/items/spaces.ts:23-104`:
+
+```typescript
+function getPhosphorIconPath(pascalName: string): string | null {
+  const name = getIconNameFromPascalCase(pascalName);
+  // Resolves to @phosphor-icons/core/assets/duotone/{name}-duotone.svg
+}
+```
+
+## API Operations
+
+The Spaces system provides the following IPC handlers for renderer processes:
+
+<Accordion title="spaces:get-all">
+  Get all Spaces across all profiles
+  
+  ```typescript
+  const spaces = await window.flow.spaces.getAll();
+  ```
+</Accordion>
+
+<Accordion title="spaces:get-from-profile">
+  Get all Spaces within a specific profile
+  
+  ```typescript
+  const spaces = await window.flow.spaces.getFromProfile(profileId);
+  ```
+</Accordion>
+
+<Accordion title="spaces:create">
+  Create a new Space in a profile
+  
+  ```typescript
+  const success = await window.flow.spaces.create(profileId, spaceName);
+  ```
+</Accordion>
+
+<Accordion title="spaces:update">
+  Update Space properties like name, icon, or theme
+  
+  ```typescript
+  await window.flow.spaces.update(profileId, spaceId, { name: 'New Name' });
+  ```
+</Accordion>
+
+<Accordion title="spaces:delete">
+  Delete a Space and all its tabs
+  
+  ```typescript
+  await window.flow.spaces.delete(profileId, spaceId);
+  ```
+</Accordion>
+
+<Accordion title="spaces:set-using">
+  Switch the current window to a different Space
+  
+  ```typescript
+  await window.flow.spaces.setUsing(profileId, spaceId);
+  ```
+</Accordion>
+
+## Space Controller Architecture
+
+The `SpacesController` at `src/main/controllers/spaces-controller/index.ts:25` manages all Space operations:
+
+### Caching Strategy
+
+- Spaces are lazily loaded per-profile
+- In-memory cache avoids repeated disk reads
+- Cache invalidation on update/delete operations
+- Automatic reconciliation when data changes
+
+### Event System
+
+The controller emits events for state changes:
+
+```typescript
+type SpacesControllerEvents = {
+  'space-created': [profileId, spaceId, spaceData];
+  'space-updated': [profileId, spaceId, updatedFields];
+  'space-deleted': [profileId, spaceId];
+  'requested-all-spaces-from-profile': [profileId];
+}
+```
+
+These events trigger UI updates via the IPC message system at `src/main/ipc/session/spaces.ts:57-62`:
+
+```typescript
+spacesController.on('space-created', fireOnSpacesChanged);
+spacesController.on('space-updated', fireOnSpacesChanged);
+spacesController.on('space-deleted', fireOnSpacesChanged);
+```
+
+## Window-Space Relationship
+
+Each browser window tracks its current Space:
+
+```typescript
+// Get current Space for a window
+const currentSpaceId = window.currentSpaceId;
+
+// Set Space for a window
+window.setCurrentSpace(spaceId);
+```
+
+Implementation at `src/main/ipc/session/spaces.ts:52-55`:
+
+```typescript
+export function setWindowSpace(window: BrowserWindow, spaceId: string) {
+  window.setCurrentSpace(spaceId);
+  window.sendMessage('spaces:on-set-window-space', spaceId);
+}
+```
+
+## Space Ordering
+
+Spaces can be reordered within a profile using the `reorder` operation:
+
+```typescript
+const orderMap = [
+  { profileId: 'main', spaceId: 'space-1', order: 0 },
+  { profileId: 'main', spaceId: 'space-2', order: 1 },
+  { profileId: 'main', spaceId: 'space-3', order: 2 },
+];
+
+await spacesController.reorder(orderMap);
+```
+
+This updates the `order` field for each Space and re-sorts the display order.
+
+## Last Used Space
+
+The system tracks when Spaces were last accessed:
+
+```typescript
+// Update last used timestamp
+await spacesController.setLastUsed(profileId, spaceId);
+
+// Get most recently used Space
+const lastSpace = await spacesController.getLastUsed();
+
+// Get most recently used Space in a profile
+const lastProfileSpace = await spacesController.getLastUsedFromProfile(profileId);
+```
+
+This enables features like "restore last Space" when opening a new window.
+
+## Default Space Creation
+
+When a new profile is created, a default Space is automatically created with the same name as the profile (`src/main/controllers/profiles-controller/raw.ts:94-99`):
+
+```typescript
+if (shouldCreateSpace) {
+  await spacesController.create(profileId, profileName).then((success) => {
+    if (!success) {
+      debugError('PROFILES', `Error creating default space for profile ${profileId}`);
+    }
+  });
+}
+```
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Project Organization" icon="folder-open">
+    Create separate Spaces for each project you're working on
+  </Card>
+  
+  <Card title="Context Switching" icon="arrows-left-right">
+    Quickly switch between work, research, and entertainment contexts
+  </Card>
+  
+  <Card title="Research" icon="magnifying-glass">
+    Keep related research tabs together in a dedicated Space
+  </Card>
+  
+  <Card title="Development" icon="code">
+    Separate development, staging, and production environments
+  </Card>
+</CardGroup>
+
+## Related Features
+
+- [Profiles](/features/profiles) - Spaces exist within profiles
+- [Tabs](/features/tabs) - Tabs are organized within Spaces
+- [Shortcuts](/features/shortcuts) - Keyboard shortcuts for Space switching

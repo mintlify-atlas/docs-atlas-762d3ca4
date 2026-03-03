@@ -1,0 +1,384 @@
+---
+title: Extension Locales
+description: Handle internationalization and localization for Chrome extensions in Flow Browser
+---
+
+## Overview
+
+The Extension Locales API provides utilities for handling internationalization (i18n) in Chrome extensions. It enables retrieval and translation of localized messages from extension `_locales` directories based on user locale preferences.
+
+## How Chrome Extension i18n Works
+
+Chrome extensions support internationalization through:
+
+1. **Locale Directories**: Extensions contain a `_locales` directory with subdirectories for each supported locale
+2. **Messages File**: Each locale directory contains a `messages.json` file with translations
+3. **Locale Fallback**: Extensions specify a `default_locale` in their manifest for fallback
+
+### Directory Structure
+
+```
+extension/
+├── manifest.json
+├── _locales/
+│   ├── en/
+│   │   └── messages.json
+│   ├── es/
+│   │   └── messages.json
+│   ├── fr/
+│   │   └── messages.json
+│   └── de/
+│       └── messages.json
+└── ...
+```
+
+### Messages Format
+
+Each `messages.json` file follows this format:
+
+```json
+{
+  "extension_name": {
+    "message": "My Extension",
+    "description": "The name of the extension"
+  },
+  "app_description": {
+    "message": "This extension does amazing things"
+  },
+  "action_button_text": {
+    "message": "Click Me!",
+    "description": "Text shown on the action button"
+  }
+}
+```
+
+## API Reference
+
+### `transformStringToLocale()`
+
+Transforms a message key into its localized version using the extension's locale files.
+
+```typescript
+function transformStringToLocale(
+  extensionPath: string,
+  str: string,
+  targetLocale?: string
+): Promise<string>
+```
+
+#### Parameters
+
+- `extensionPath` (string): The file system path to the extension's root directory
+- `str` (string): The message key to transform (e.g., `"extension_name"`)
+- `targetLocale` (string, optional): Specific locale to use for translation
+
+#### Returns
+
+A Promise that resolves to:
+- The localized message if found
+- The original string if no translation exists
+- The original string if the extension has no locale files
+
+#### Locale Resolution Priority
+
+1. **Target Locale**: If `targetLocale` parameter is provided and exists
+2. **User Locale**: Current user's system locale from `app.getLocale()`
+3. **Default Locale**: Extension's `default_locale` from manifest.json
+4. **Original String**: If none of the above are available
+
+See: [modules/extensions/locales.ts:76](https://github.com/flow-browser/flow/blob/main/src/main/modules/extensions/locales.ts#L76)
+
+## Usage Examples
+
+### Basic Translation
+
+```typescript
+import { transformStringToLocale } from "@/modules/extensions/locales";
+
+const extensionPath = "/path/to/extension";
+
+// Translate extension name
+const extensionName = await transformStringToLocale(
+  extensionPath,
+  "extension_name"
+);
+console.log(`Extension name: ${extensionName}`);
+// Output: "Extension name: My Extension"
+
+// Translate description
+const description = await transformStringToLocale(
+  extensionPath,
+  "app_description"
+);
+console.log(description);
+// Output: "This extension does amazing things"
+```
+
+### With Specific Locale
+
+```typescript
+// Force Spanish translation
+const spanishName = await transformStringToLocale(
+  extensionPath,
+  "extension_name",
+  "es"
+);
+// Returns Spanish translation if available
+
+// Force French translation
+const frenchName = await transformStringToLocale(
+  extensionPath,
+  "extension_name",
+  "fr"
+);
+// Returns French translation if available
+```
+
+### Handling Missing Translations
+
+```typescript
+const result = await transformStringToLocale(
+  extensionPath,
+  "nonexistent_key"
+);
+console.log(result);
+// Output: "nonexistent_key" (returns original string)
+```
+
+### Getting Extension Metadata
+
+```typescript
+import { getManifest } from "@/modules/extensions/management";
+import { transformStringToLocale } from "@/modules/extensions/locales";
+
+const manifest = await getManifest(extensionPath);
+if (!manifest) {
+  console.error("Failed to load manifest");
+  return;
+}
+
+// Get localized name from manifest
+const rawName = manifest.name;
+const localizedName = await transformStringToLocale(
+  extensionPath,
+  rawName
+);
+
+console.log(`Raw: ${rawName}`);
+console.log(`Localized: ${localizedName}`);
+// Raw: __MSG_extension_name__
+// Localized: My Extension
+```
+
+## Internal Implementation
+
+### Locale File Path Resolution
+
+The module uses these internal functions to resolve locale file paths:
+
+```typescript
+// Get root _locales directory
+function getLocalesRootPath(extensionPath: string): string {
+  return path.join(extensionPath, "_locales");
+}
+
+// Get specific locale's messages.json
+function getLocalePath(extensionPath: string, locale: string): string {
+  return path.join(
+    getLocalesRootPath(extensionPath),
+    locale,
+    "messages.json"
+  );
+}
+```
+
+See: [modules/extensions/locales.ts:14](https://github.com/flow-browser/flow/blob/main/src/main/modules/extensions/locales.ts#L14)
+
+### Checking for Locale Support
+
+```typescript
+async function hasLocales(extensionPath: string): Promise<boolean> {
+  const localesRootPath = getLocalesRootPath(extensionPath);
+  const stats = await getFsStat(localesRootPath);
+  return stats?.isDirectory() || false;
+}
+```
+
+See: [modules/extensions/locales.ts:22](https://github.com/flow-browser/flow/blob/main/src/main/modules/extensions/locales.ts#L22)
+
+### Getting Available Locales
+
+```typescript
+async function getAllLocales(extensionPath: string): Promise<string[]> {
+  const localesExists = await hasLocales(extensionPath);
+  if (!localesExists) return [];
+  
+  const localesRootPath = getLocalesRootPath(extensionPath);
+  const locales = await fs.readdir(localesRootPath);
+  return locales;
+}
+```
+
+See: [modules/extensions/locales.ts:47](https://github.com/flow-browser/flow/blob/main/src/main/modules/extensions/locales.ts#L47)
+
+### Loading Locale Data
+
+```typescript
+type LocaleData = {
+  [key: string]: {
+    message: string;
+  };
+};
+
+async function getLocaleData(
+  extensionPath: string,
+  locale: string
+): Promise<LocaleData | null> {
+  const localePath = getLocalePath(extensionPath, locale);
+  const stats = await getFsStat(localePath);
+  if (!stats?.isFile()) return null;
+  
+  const data = await fs.readFile(localePath, "utf8");
+  return JSON.parse(data);
+}
+```
+
+See: [modules/extensions/locales.ts:33](https://github.com/flow-browser/flow/blob/main/src/main/modules/extensions/locales.ts#L33)
+
+### String Translation
+
+```typescript
+async function translateString(
+  extensionPath: string,
+  locale: string,
+  str: string
+): Promise<string> {
+  const localeData = await getLocaleData(extensionPath, locale);
+  if (!localeData) return str;
+  
+  const translation = localeData[str];
+  if (!translation) return str;
+  
+  return translation.message;
+}
+```
+
+See: [modules/extensions/locales.ts:61](https://github.com/flow-browser/flow/blob/main/src/main/modules/extensions/locales.ts#L61)
+
+## Real-World Example: Chrome Web Store Integration
+
+When installing extensions from the Chrome Web Store, Flow Browser uses locale translation to display the extension name:
+
+```typescript
+import { transformStringToLocale } from "@/modules/extensions/locales";
+
+// During installation
+beforeInstall: async (details) => {
+  // details.localizedName is already processed by electron-chrome-web-store
+  // but you could also do it manually:
+  const manifest = await getManifest(details.path);
+  const localizedName = await transformStringToLocale(
+    details.path,
+    manifest.name
+  );
+  
+  const title = `Add "${localizedName}"?`;
+  
+  const result = await dialog.showMessageBox({
+    title,
+    message: `Install ${localizedName}?`,
+    buttons: ["Cancel", "Add Extension"]
+  });
+  
+  return { action: result.response === 0 ? "deny" : "allow" };
+}
+```
+
+## Locale Code Format
+
+Chrome extensions use locale codes in this format:
+
+- **Language only**: `en`, `es`, `fr`, `de`
+- **Language + Region**: `en_US`, `en_GB`, `pt_BR`, `zh_CN`
+- **Underscore separator**: Always use `_` not `-`
+
+### Common Locale Codes
+
+| Code | Language |
+|------|----------|
+| `en` | English |
+| `en_US` | English (United States) |
+| `en_GB` | English (United Kingdom) |
+| `es` | Spanish |
+| `fr` | French |
+| `de` | German |
+| `pt_BR` | Portuguese (Brazil) |
+| `zh_CN` | Chinese (Simplified) |
+| `zh_TW` | Chinese (Traditional) |
+| `ja` | Japanese |
+| `ko` | Korean |
+
+## Error Handling
+
+The locales API handles errors gracefully:
+
+```typescript
+// Returns original string if:
+// - Extension has no _locales directory
+// - Requested locale doesn't exist
+// - messages.json is invalid JSON
+// - Message key doesn't exist in locale data
+
+const result = await transformStringToLocale(
+  "/invalid/path",
+  "some_key"
+);
+// Returns: "some_key"
+```
+
+Errors are logged to console but don't throw exceptions:
+
+```typescript
+// If locale file parsing fails:
+// Console: "Error getting locale data for es in /path/to/extension: ..."
+// Returns: Original string
+```
+
+See: [modules/extensions/locales.ts:42](https://github.com/flow-browser/flow/blob/main/src/main/modules/extensions/locales.ts#L42)
+
+<Note>
+The locale API is designed to be fail-safe. If any step in the localization process fails, it returns the original string rather than throwing an error.
+</Note>
+
+## Best Practices
+
+<Warning>
+**Performance Considerations**
+
+Each call to `transformStringToLocale()` reads from the filesystem. For extensions with many translatable strings, consider caching locale data:
+
+```typescript
+const localeCache = new Map<string, LocaleData>();
+
+async function getCachedLocaleData(
+  extensionPath: string,
+  locale: string
+): Promise<LocaleData | null> {
+  const cacheKey = `${extensionPath}:${locale}`;
+  
+  if (localeCache.has(cacheKey)) {
+    return localeCache.get(cacheKey)!;
+  }
+  
+  const data = await getLocaleData(extensionPath, locale);
+  if (data) localeCache.set(cacheKey, data);
+  
+  return data;
+}
+```
+</Warning>
+
+## Related APIs
+
+- [Extension Management](/api/extensions/overview) - Core extension functionality
+- [Permission Warnings](/api/extensions/permissions) - Extension permission handling

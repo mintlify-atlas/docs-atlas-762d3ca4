@@ -1,0 +1,685 @@
+---
+title: 'Browser IPC'
+description: 'IPC APIs for browser profile management, tab operations, and page navigation'
+icon: 'browser'
+---
+
+## Overview
+
+The Browser IPC namespace provides APIs for managing browser profiles, tabs, navigation, and page content. These APIs are available through the `window.flow.browser`, `window.flow.tabs`, and `window.flow.navigation` objects.
+
+## Browser API
+
+The `window.flow.browser` API manages browser profiles and windows.
+
+### Source Files
+
+- **Interface**: `src/shared/flow/interfaces/browser/browser.ts`
+- **Handler**: `src/main/ipc/browser/browser.ts`
+- **Preload**: `src/preload/index.ts:411-421`
+
+### Methods
+
+<ParamField path="loadProfile" type="(profileId: string) => Promise<void>">
+  Loads a profile, initializing its session and making it available for use.
+  
+  <Tabs>
+    <Tab title="Usage">
+      ```typescript
+      await window.flow.browser.loadProfile("profile-123");
+      ```
+    </Tab>
+    <Tab title="Handler">
+      ```typescript
+      // src/main/ipc/browser/browser.ts:5-7
+      ipcMain.on("browser:load-profile", async (_event, profileId: string) => {
+        await loadedProfilesController.load(profileId);
+      });
+      ```
+    </Tab>
+  </Tabs>
+  
+  <ParamField path="profileId" type="string" required>
+    The ID of the profile to load
+  </ParamField>
+</ParamField>
+
+<ParamField path="unloadProfile" type="(profileId: string) => Promise<void>">
+  Unloads a profile, cleaning up its session and resources.
+  
+  <Tabs>
+    <Tab title="Usage">
+      ```typescript
+      await window.flow.browser.unloadProfile("profile-123");
+      ```
+    </Tab>
+    <Tab title="Handler">
+      ```typescript
+      // src/main/ipc/browser/browser.ts:9-11
+      ipcMain.on("browser:unload-profile", async (_event, profileId: string) => {
+        loadedProfilesController.unload(profileId);
+      });
+      ```
+    </Tab>
+  </Tabs>
+  
+  <ParamField path="profileId" type="string" required>
+    The ID of the profile to unload
+  </ParamField>
+</ParamField>
+
+<ParamField path="createWindow" type="() => void">
+  Creates a new browser window.
+  
+  <Tabs>
+    <Tab title="Usage">
+      ```typescript
+      window.flow.browser.createWindow();
+      ```
+    </Tab>
+    <Tab title="Handler">
+      ```typescript
+      // src/main/ipc/browser/browser.ts:13-15
+      ipcMain.on("browser:create-window", async () => {
+        browserWindowsController.create();
+      });
+      ```
+    </Tab>
+  </Tabs>
+</ParamField>
+
+## Tabs API
+
+The `window.flow.tabs` API provides comprehensive tab management capabilities.
+
+### Source Files
+
+- **Interface**: `src/shared/flow/interfaces/browser/tabs.ts`
+- **Handler**: `src/main/ipc/browser/tabs.ts`
+- **Preload**: `src/preload/index.ts:423-483`
+
+### Data Methods
+
+<ParamField path="getData" type="() => Promise<WindowTabsData>">
+  Retrieves all tab data for the current window, including tabs, tab groups, focused tabs, and active tabs.
+  
+  <Tabs>
+    <Tab title="Usage">
+      ```typescript
+      const tabsData = await window.flow.tabs.getData();
+      console.log("Tabs:", tabsData.tabs);
+      console.log("Tab Groups:", tabsData.tabGroups);
+      console.log("Focused Tabs:", tabsData.focusedTabIds);
+      console.log("Active Tabs:", tabsData.activeTabIds);
+      ```
+    </Tab>
+    <Tab title="Handler">
+      ```typescript
+      // src/main/ipc/browser/tabs.ts:133-139
+      ipcMain.handle("tabs:get-data", async (event) => {
+        const webContents = event.sender;
+        const window = browserWindowsController.getWindowFromWebContents(webContents);
+        if (!window) return null;
+        
+        return getWindowTabsData(window);
+      });
+      ```
+    </Tab>
+  </Tabs>
+  
+  <ResponseField name="tabs" type="TabData[]">
+    Array of tab data objects containing id, title, url, favicon, loading state, etc.
+  </ResponseField>
+  
+  <ResponseField name="tabGroups" type="TabGroupData[]">
+    Array of tab group data objects
+  </ResponseField>
+  
+  <ResponseField name="focusedTabIds" type="WindowFocusedTabIds">
+    Map of space ID to focused tab ID
+  </ResponseField>
+  
+  <ResponseField name="activeTabIds" type="WindowActiveTabIds">
+    Map of space ID to active tab ID(s)
+  </ResponseField>
+</ParamField>
+
+<ParamField path="onDataUpdated" type="IPCListener<[WindowTabsData]>">
+  Subscribes to full tab data refresh events. Called when structural changes occur (tabs added/removed, active tab changed, etc.).
+  
+  <Tabs>
+    <Tab title="Usage">
+      ```typescript
+      const unsubscribe = window.flow.tabs.onDataUpdated((data) => {
+        console.log("Tabs updated:", data);
+        // Update your UI with the new data
+      });
+      
+      // Later: clean up
+      unsubscribe();
+      ```
+    </Tab>
+    <Tab title="React Hook">
+      ```typescript
+      import { useEffect, useState } from "react";
+      
+      function useTabsData() {
+        const [tabsData, setTabsData] = useState(null);
+        
+        useEffect(() => {
+          // Initial fetch
+          window.flow.tabs.getData().then(setTabsData);
+          
+          // Subscribe to updates
+          const unsubscribe = window.flow.tabs.onDataUpdated(setTabsData);
+          
+          return unsubscribe;
+        }, []);
+        
+        return tabsData;
+      }
+      ```
+    </Tab>
+  </Tabs>
+  
+  <Info>
+    This listener receives full `WindowTabsData` refreshes. For more efficient content-only updates (title, url, loading state), use `onTabsContentUpdated` instead.
+  </Info>
+</ParamField>
+
+<ParamField path="onTabsContentUpdated" type="IPCListener<[TabData[]]>">
+  Subscribes to lightweight content-only tab updates. Receives only the tabs whose content (title, url, isLoading, etc.) changed, without a full refresh.
+  
+  <Tabs>
+    <Tab title="Usage">
+      ```typescript
+      const unsubscribe = window.flow.tabs.onTabsContentUpdated((updatedTabs) => {
+        console.log("Content updated for tabs:", updatedTabs);
+        // Merge these updates into your existing state
+      });
+      ```
+    </Tab>
+    <Tab title="React Hook">
+      ```typescript
+      function useTabsWithOptimizedUpdates() {
+        const [tabs, setTabs] = useState([]);
+        
+        useEffect(() => {
+          // Full refresh on structural changes
+          const unsubFull = window.flow.tabs.onDataUpdated((data) => {
+            setTabs(data.tabs);
+          });
+          
+          // Partial updates for content changes
+          const unsubContent = window.flow.tabs.onTabsContentUpdated((updated) => {
+            setTabs(prevTabs => 
+              prevTabs.map(tab => {
+                const updatedTab = updated.find(u => u.id === tab.id);
+                return updatedTab || tab;
+              })
+            );
+          });
+          
+          return () => {
+            unsubFull();
+            unsubContent();
+          };
+        }, []);
+        
+        return tabs;
+      }
+      ```
+    </Tab>
+  </Tabs>
+  
+  <Info>
+    The IPC layer automatically debounces updates (80ms) and batches content changes to reduce overhead. If a structural change occurs during the debounce window, it absorbs pending content changes.
+  </Info>
+</ParamField>
+
+### Tab Operations
+
+<ParamField path="newTab" type="(url?: string, isForeground?: boolean, spaceId?: string) => Promise<boolean>">
+  Creates a new tab in the specified space.
+  
+  <Tabs>
+    <Tab title="Usage">
+      ```typescript
+      // Create tab in background
+      await window.flow.tabs.newTab("https://example.com", false, spaceId);
+      
+      // Create tab in foreground
+      await window.flow.tabs.newTab("https://example.com", true, spaceId);
+      
+      // Create blank tab
+      await window.flow.tabs.newTab();
+      ```
+    </Tab>
+    <Tab title="Handler">
+      ```typescript
+      // src/main/ipc/browser/tabs.ts:253-279
+      ipcMain.handle("tabs:new-tab", async (event, url?: string, isForeground?: boolean, spaceId?: string) => {
+        const webContents = event.sender;
+        const window = browserWindowsController.getWindowFromWebContents(webContents) 
+          || browserWindowsController.getWindows()[0];
+        if (!window) return;
+        
+        if (!spaceId) {
+          spaceId = window.currentSpaceId;
+          if (!spaceId) return;
+        }
+        
+        const space = await spacesController.get(spaceId);
+        if (!space) return;
+        
+        const tab = await tabsController.createTab(window.id, space.profileId, spaceId, undefined, {
+          url: url || undefined
+        });
+        
+        if (isForeground) {
+          tabsController.setActiveTab(tab);
+        }
+        return true;
+      });
+      ```
+    </Tab>
+  </Tabs>
+  
+  <ParamField path="url" type="string" optional>
+    The URL to load in the new tab. Omit to create a blank tab.
+  </ParamField>
+  
+  <ParamField path="isForeground" type="boolean" optional>
+    Whether to make the tab active (foreground). Defaults to false.
+  </ParamField>
+  
+  <ParamField path="spaceId" type="string" optional>
+    The ID of the space to create the tab in. Uses current space if not provided.
+  </ParamField>
+</ParamField>
+
+<ParamField path="switchToTab" type="(tabId: number) => Promise<boolean>">
+  Switches to (activates) the specified tab.
+  
+  ```typescript
+  await window.flow.tabs.switchToTab(tabId);
+  ```
+</ParamField>
+
+<ParamField path="closeTab" type="(tabId: number) => Promise<boolean>">
+  Closes the specified tab.
+  
+  ```typescript
+  await window.flow.tabs.closeTab(tabId);
+  ```
+</ParamField>
+
+<ParamField path="moveTab" type="(tabId: number, newPosition: number) => Promise<boolean>">
+  Moves a tab to a new position within its current space.
+  
+  ```typescript
+  await window.flow.tabs.moveTab(tabId, 3);
+  ```
+  
+  <Info>
+    The handler automatically normalizes positions after reordering to prevent drift. If the tab is in a group, all group members are moved together.
+  </Info>
+</ParamField>
+
+<ParamField path="moveTabToWindowSpace" type="(tabId: number, spaceId: string, newPosition?: number) => Promise<boolean>">
+  Moves a tab to a different space, optionally at a specific position.
+  
+  ```typescript
+  await window.flow.tabs.moveTabToWindowSpace(tabId, "space-456", 0);
+  ```
+</ParamField>
+
+<ParamField path="batchMoveTabs" type="(tabIds: number[], spaceId: string, newPositionStart?: number) => Promise<boolean>">
+  Moves multiple tabs to a new space in one operation.
+  
+  ```typescript
+  await window.flow.tabs.batchMoveTabs([tab1, tab2, tab3], "space-789", 5);
+  ```
+</ParamField>
+
+### Tab Context Menu
+
+<ParamField path="showContextMenu" type="(tabId: number) => void">
+  Displays the native context menu for a tab.
+  
+  <Tabs>
+    <Tab title="Usage">
+      ```typescript
+      window.flow.tabs.showContextMenu(tabId);
+      ```
+    </Tab>
+    <Tab title="Implementation">
+      The context menu includes:
+      - Copy URL
+      - Wake Tab / Put Tab to Sleep
+      - Close Tab
+      - Reopen Closed Tab (with most recent tab title)
+      
+      See `src/main/ipc/browser/tabs.ts:379-487` for the full implementation.
+    </Tab>
+  </Tabs>
+</ParamField>
+
+### Tab State
+
+<ParamField path="setTabMuted" type="(tabId: number, muted: boolean) => Promise<boolean>">
+  Sets the audio muted state of a tab.
+  
+  ```typescript
+  // Mute tab
+  await window.flow.tabs.setTabMuted(tabId, true);
+  
+  // Unmute tab
+  await window.flow.tabs.setTabMuted(tabId, false);
+  ```
+</ParamField>
+
+<ParamField path="disablePictureInPicture" type="(goBackToTab: boolean) => Promise<boolean>">
+  Disables Picture-in-Picture mode for a tab.
+  
+  ```typescript
+  // Disable PiP and return to tab
+  await window.flow.tabs.disablePictureInPicture(true);
+  
+  // Disable PiP without switching tabs
+  await window.flow.tabs.disablePictureInPicture(false);
+  ```
+  
+  <Warning>
+    This method will only work if the tab is currently in Picture-in-Picture mode. It's tightly secured and will fail otherwise.
+  </Warning>
+</ParamField>
+
+### Recently Closed Tabs
+
+<ParamField path="getRecentlyClosed" type="() => Promise<RecentlyClosedTabData[]>">
+  Retrieves all recently closed tabs, sorted by most recently closed first.
+  
+  ```typescript
+  const recentlyClosed = await window.flow.tabs.getRecentlyClosed();
+  console.log("Recently closed:", recentlyClosed);
+  ```
+</ParamField>
+
+<ParamField path="restoreRecentlyClosed" type="(uniqueId: string) => Promise<boolean>">
+  Restores a recently closed tab by its unique ID.
+  
+  <Tabs>
+    <Tab title="Usage">
+      ```typescript
+      const recentlyClosed = await window.flow.tabs.getRecentlyClosed();
+      if (recentlyClosed.length > 0) {
+        await window.flow.tabs.restoreRecentlyClosed(recentlyClosed[0].tabData.uniqueId);
+      }
+      ```
+    </Tab>
+    <Tab title="Implementation">
+      The restore process:
+      1. Retrieves the tab data from the recently closed manager
+      2. Recreates the tab with its original title, URL, favicon, and navigation history
+      3. Attempts to restore tab group membership if other group members are still alive
+      4. Activates the restored tab
+      
+      See `src/main/ipc/browser/tabs.ts:495-521` for details.
+    </Tab>
+  </Tabs>
+</ParamField>
+
+<ParamField path="clearRecentlyClosed" type="() => Promise<boolean>">
+  Clears the list of recently closed tabs.
+  
+  ```typescript
+  await window.flow.tabs.clearRecentlyClosed();
+  ```
+</ParamField>
+
+## Navigation API
+
+The `window.flow.navigation` API handles page navigation within tabs.
+
+### Source Files
+
+- **Interface**: `src/shared/flow/interfaces/browser/navigation.ts`
+- **Handler**: `src/main/ipc/browser/navigation.ts`
+- **Preload**: `src/preload/index.ts:495-512`
+
+### Methods
+
+<ParamField path="goTo" type="(url: string, tabId?: number) => void">
+  Navigates to a specific URL. If no tab ID is provided, navigates the focused tab.
+  
+  <Tabs>
+    <Tab title="Usage">
+      ```typescript
+      // Navigate focused tab
+      window.flow.navigation.goTo("https://example.com");
+      
+      // Navigate specific tab
+      window.flow.navigation.goTo("https://example.com", tabId);
+      ```
+    </Tab>
+    <Tab title="Handler">
+      ```typescript
+      // src/main/ipc/browser/navigation.ts:5-18
+      ipcMain.on("navigation:go-to", (event, url: string, tabId?: number) => {
+        const webContents = event.sender;
+        const window = browserWindowsController.getWindowFromWebContents(webContents);
+        if (!window) return false;
+        
+        const currentSpace = window.currentSpaceId;
+        if (!currentSpace) return false;
+        
+        const tab = tabId 
+          ? tabsController.getTabById(tabId) 
+          : tabsController.getFocusedTab(window.id, currentSpace);
+        if (!tab) return false;
+        
+        tab.loadURL(url);
+        return true;
+      });
+      ```
+    </Tab>
+  </Tabs>
+</ParamField>
+
+<ParamField path="stopLoadingTab" type="(tabId: number) => void">
+  Stops loading the specified tab.
+  
+  ```typescript
+  window.flow.navigation.stopLoadingTab(tabId);
+  ```
+</ParamField>
+
+<ParamField path="reloadTab" type="(tabId: number) => void">
+  Reloads the specified tab.
+  
+  ```typescript
+  window.flow.navigation.reloadTab(tabId);
+  ```
+</ParamField>
+
+<ParamField path="getTabNavigationStatus" type="(tabId: number) => Promise<TabNavigationStatus | null>">
+  Gets the navigation status of a tab, including navigation history and back/forward capabilities.
+  
+  <Tabs>
+    <Tab title="Usage">
+      ```typescript
+      const status = await window.flow.navigation.getTabNavigationStatus(tabId);
+      if (status) {
+        console.log("Can go back:", status.canGoBack);
+        console.log("Can go forward:", status.canGoForward);
+        console.log("Current page:", status.navigationHistory[status.activeIndex]);
+      }
+      ```
+    </Tab>
+    <Tab title="Handler">
+      ```typescript
+      // src/main/ipc/browser/navigation.ts:34-48
+      ipcMain.handle("navigation:get-tab-status", async (_event, tabId: number) => {
+        const tab = tabsController.getTabById(tabId);
+        if (!tab) return null;
+        
+        const tabWebContents = tab.webContents;
+        const navigationHistory = tabWebContents?.navigationHistory;
+        if (!navigationHistory) return null;
+        
+        return {
+          navigationHistory: navigationHistory.getAllEntries(),
+          activeIndex: navigationHistory.getActiveIndex(),
+          canGoBack: navigationHistory.canGoBack(),
+          canGoForward: navigationHistory.canGoForward()
+        };
+      });
+      ```
+    </Tab>
+  </Tabs>
+  
+  <ResponseField name="navigationHistory" type="NavigationEntry[]">
+    Array of navigation entries, where index 0 is the earliest visited page
+  </ResponseField>
+  
+  <ResponseField name="activeIndex" type="number">
+    Index of the currently active navigation entry
+  </ResponseField>
+  
+  <ResponseField name="canGoBack" type="boolean">
+    Whether the tab can navigate back
+  </ResponseField>
+  
+  <ResponseField name="canGoForward" type="boolean">
+    Whether the tab can navigate forward
+  </ResponseField>
+</ParamField>
+
+<ParamField path="goToNavigationEntry" type="(tabId: number, index: number) => void">
+  Navigates to a specific entry in the tab's navigation history.
+  
+  ```typescript
+  const status = await window.flow.navigation.getTabNavigationStatus(tabId);
+  // Go to the first page in history
+  window.flow.navigation.goToNavigationEntry(tabId, 0);
+  ```
+</ParamField>
+
+## Complete Example
+
+Here's a complete React component that uses the Browser IPC APIs:
+
+```typescript
+import { useEffect, useState } from "react";
+
+function BrowserUI() {
+  const [tabs, setTabs] = useState([]);
+  const [activeTabId, setActiveTabId] = useState(null);
+  
+  useEffect(() => {
+    // Initial data fetch
+    window.flow.tabs.getData().then(data => {
+      setTabs(data.tabs);
+      // Get the first active tab from any space
+      const firstSpace = Object.keys(data.activeTabIds)[0];
+      if (firstSpace) {
+        const activeIds = data.activeTabIds[firstSpace];
+        setActiveTabId(activeIds[0]);
+      }
+    });
+    
+    // Subscribe to structural updates
+    const unsubscribeFull = window.flow.tabs.onDataUpdated(data => {
+      setTabs(data.tabs);
+    });
+    
+    // Subscribe to content updates
+    const unsubscribeContent = window.flow.tabs.onTabsContentUpdated(updatedTabs => {
+      setTabs(prevTabs => 
+        prevTabs.map(tab => {
+          const updated = updatedTabs.find(u => u.id === tab.id);
+          return updated || tab;
+        })
+      );
+    });
+    
+    return () => {
+      unsubscribeFull();
+      unsubscribeContent();
+    };
+  }, []);
+  
+  const handleNewTab = async () => {
+    await window.flow.tabs.newTab("https://example.com", true);
+  };
+  
+  const handleCloseTab = async (tabId) => {
+    await window.flow.tabs.closeTab(tabId);
+  };
+  
+  const handleSwitchTab = async (tabId) => {
+    await window.flow.tabs.switchToTab(tabId);
+    setActiveTabId(tabId);
+  };
+  
+  const handleReload = () => {
+    if (activeTabId) {
+      window.flow.navigation.reloadTab(activeTabId);
+    }
+  };
+  
+  const handleNavigate = (url) => {
+    window.flow.navigation.goTo(url, activeTabId);
+  };
+  
+  return (
+    <div>
+      <div className="tab-bar">
+        {tabs.map(tab => (
+          <div 
+            key={tab.id}
+            className={tab.id === activeTabId ? "tab active" : "tab"}
+            onClick={() => handleSwitchTab(tab.id)}
+            onContextMenu={() => window.flow.tabs.showContextMenu(tab.id)}
+          >
+            {tab.faviconURL && <img src={tab.faviconURL} alt="" />}
+            <span>{tab.title}</span>
+            <button onClick={(e) => {
+              e.stopPropagation();
+              handleCloseTab(tab.id);
+            }}>×</button>
+          </div>
+        ))}
+        <button onClick={handleNewTab}>+</button>
+      </div>
+      
+      <div className="toolbar">
+        <button onClick={handleReload}>Reload</button>
+        <input 
+          type="text" 
+          onKeyPress={(e) => {
+            if (e.key === 'Enter') {
+              handleNavigate(e.target.value);
+            }
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+```
+
+## Related APIs
+
+<CardGroup cols={2}>
+  <Card title="App IPC" icon="application" href="/api/ipc/app">
+    Application info and clipboard APIs
+  </Card>
+  <Card title="Window IPC" icon="window" href="/api/ipc/window">
+    Window management and controls
+  </Card>
+  <Card title="IPC Overview" icon="arrows-left-right" href="/api/ipc/overview">
+    Learn about Flow's IPC architecture
+  </Card>
+</CardGroup>

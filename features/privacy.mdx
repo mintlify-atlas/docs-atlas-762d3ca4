@@ -1,0 +1,371 @@
+---
+title: Privacy & Security
+description: Built-in privacy features including content blocking, profile isolation, and DRM support
+icon: shield
+---
+
+Flow Browser is built with privacy and security in mind, offering content blocking, isolated profiles, and modern web compatibility including DRM support for streaming services.
+
+## Content Blocking
+
+Flow Browser includes a powerful content blocker powered by the Ghostery adblocker engine.
+
+### Blocking Modes
+
+The content blocker offers three filtering levels:
+
+<CardGroup cols={3}>
+  <Card title="All" icon="shield-check">
+    Block all ads, trackers, annoyances, and other unwanted content
+  </Card>
+  <Card title="Ads & Trackers" icon="shield">
+    Block advertisements and tracking scripts only
+  </Card>
+  <Card title="Ads Only" icon="rectangle-ad">
+    Block only advertisements, allow trackers
+  </Card>
+</CardGroup>
+
+### How It Works
+
+The content blocker uses Ghostery's `@ghostery/adblocker-electron` package:
+
+```typescript
+import { ElectronBlocker } from '@ghostery/adblocker-electron';
+
+class ContentBlocker {
+  private async createBlockerInstance(type: BlockerInstanceType) {
+    switch (type) {
+      case 'all':
+        return ElectronBlocker.fromPrebuiltFull();
+      case 'adsAndTrackers':
+        return ElectronBlocker.fromPrebuiltAdsAndTracking();
+      case 'adsOnly':
+        return ElectronBlocker.fromPrebuiltAdsOnly();
+    }
+  }
+}
+```
+
+From `src/main/modules/content-blocker.ts:23-53`.
+
+### Session-Based Blocking
+
+Content blocking is applied per-session (per-profile):
+
+```typescript
+private async enableBlockerForSession(
+  blockerType: BlockerInstanceType,
+  session: Session
+): Promise<void> {
+  const blocker = await this.createBlockerInstance(blockerType);
+  
+  // Enable blocking in session
+  blocker.enableBlockingInSession(
+    unifiedWebRequests.createSession(session, SESSION_KEY)
+  );
+}
+```
+
+From `src/main/modules/content-blocker.ts:74-86`.
+
+<Note>
+  Each profile can have different content blocking settings, giving you granular control over privacy levels.
+</Note>
+
+### Blocked Request Logging
+
+The content blocker logs blocked requests for debugging:
+
+```typescript
+blocker.on('request-blocked', (request) => {
+  debugPrint('CONTENT_BLOCKER', 'Request blocked:', request.url);
+});
+```
+
+### Dynamic Configuration
+
+The content blocker automatically updates when settings change:
+
+```typescript
+public async updateConfig(): Promise<void> {
+  const contentBlocker = getSettingValueById('contentBlocker');
+  const profiles = loadedProfilesController.getAll();
+  
+  switch (contentBlocker) {
+    case 'all':
+    case 'adsAndTrackers':
+    case 'adsOnly':
+      for (const profile of profiles) {
+        this.enableBlockerForSession(contentBlocker, profile.session);
+      }
+      break;
+    default:
+      this.disableBlocker();
+  }
+}
+```
+
+From `src/main/modules/content-blocker.ts:91-108`.
+
+## Profile Isolation
+
+Each profile in Flow Browser is completely isolated with separate:
+
+<Accordion title="Browsing Data">
+  - Cookies
+  - Cache
+  - Local Storage
+  - Session Storage
+  - IndexedDB
+  - Service Workers
+</Accordion>
+
+<Accordion title="Security State">
+  - HTTPS certificates
+  - Authentication tokens
+  - Site permissions
+  - Password storage
+</Accordion>
+
+<Accordion title="Extensions">
+  - Separate extension installations
+  - Independent extension data
+  - Profile-specific extension settings
+</Accordion>
+
+### Implementation
+
+Profiles use Chromium's built-in profile system:
+
+```typescript
+const profilePath = path.join(FLOW_DATA_DIR, 'Profiles', profileId);
+await fs.mkdir(profilePath, { recursive: true });
+```
+
+From `src/main/controllers/profiles-controller/raw.ts:82-83`.
+
+Each profile directory contains:
+- `Cache/` - HTTP cache
+- `Cookies` - Cookie database
+- `Local Storage/` - localStorage data
+- `Session Storage/` - sessionStorage data
+- `Extensions/` - Installed extensions
+- `Preferences` - Chromium preferences
+
+## DRM Support (Widevine)
+
+Flow Browser supports Widevine DRM for streaming services like Netflix, Spotify, and Disney+.
+
+### Castlabs Electron
+
+The browser uses a special build of Electron with Widevine support:
+
+```json
+{
+  "electron": "https://github.com/castlabs/electron-releases#v40.1.0+wvcus"
+}
+```
+
+From `package.json` in the source repository.
+
+<Warning>
+  The Castlabs Electron build is larger than standard Electron due to the included Widevine CDM (Content Decryption Module).
+</Warning>
+
+### Supported Services
+
+With Widevine DRM, Flow Browser supports:
+
+- Netflix
+- Spotify Web Player
+- Disney+
+- Hulu
+- HBO Max
+- Amazon Prime Video
+- And other DRM-protected content
+
+## Web Security Features
+
+### Sandbox Mode
+
+All web content runs in a sandbox for security:
+
+```typescript
+const webPreferences: WebPreferences = {
+  sandbox: true,
+  webSecurity: true,
+  nodeIntegration: false,
+  contextIsolation: true,
+  // ...
+};
+```
+
+From `src/main/controllers/tabs-controller/tab.ts:90-107`.
+
+<CardGroup cols={2}>
+  <Card title="Sandbox" icon="box">
+    Renderer processes run in a restricted sandbox
+  </Card>
+  <Card title="Context Isolation" icon="layer-group">
+    Preload scripts isolated from web content
+  </Card>
+  <Card title="No Node Integration" icon="ban">
+    Web pages can't access Node.js APIs
+  </Card>
+  <Card title="Web Security" icon="shield-check">
+    Same-origin policy and CORS enforced
+  </Card>
+</CardGroup>
+
+### Safe Dialogs
+
+Dialog bombing protection is enabled:
+
+```typescript
+const webPreferences: WebPreferences = {
+  safeDialogs: true,
+  // Prevents malicious pages from showing infinite alerts
+};
+```
+
+### Scroll Bounce
+
+macOS-style scroll bounce is enabled:
+
+```typescript
+const webPreferences: WebPreferences = {
+  scrollBounce: true,
+};
+```
+
+## Navigation Security
+
+### Drag & Drop Navigation
+
+Navigating by dragging files is enabled:
+
+```typescript
+const webPreferences: WebPreferences = {
+  navigateOnDragDrop: true,
+};
+```
+
+### External Protocol Handling
+
+External protocols (like `mailto:`, `tel:`) are handled safely through the operating system.
+
+## Settings-Based Privacy
+
+The content blocker integrates with the settings system:
+
+```typescript
+// Listen for setting changes
+settingsEmitter.on('settings-changed', () => {
+  contentBlocker.updateConfig();
+});
+
+// Listen for profile changes
+loadedProfilesController.on('profile-loaded', () => {
+  contentBlocker.updateConfig();
+});
+```
+
+From `src/main/modules/content-blocker.ts:118-125`.
+
+### Initialization
+
+The content blocker initializes after settings are loaded:
+
+```typescript
+onSettingsCached().then(() => {
+  debugPrint('CONTENT_BLOCKER', 'Initializing content blocker');
+  contentBlocker.initialize();
+});
+```
+
+From `src/main/modules/content-blocker.ts:133-136`.
+
+## Privacy Best Practices
+
+<Steps>
+  <Step title="Use Separate Profiles">
+    Create different profiles for work, personal, and sensitive browsing
+  </Step>
+  
+  <Step title="Enable Content Blocking">
+    Turn on "All" mode in settings for maximum protection
+  </Step>
+  
+  <Step title="Review Extensions">
+    Only install extensions you trust and review their permissions
+  </Step>
+  
+  <Step title="Delete Unused Profiles">
+    Remove profiles you no longer need to eliminate stored data
+  </Step>
+</Steps>
+
+## Disable Blocking for Sites
+
+<Note>
+  Currently, the content blocker applies globally per-profile. Per-site exceptions are not yet implemented but could be added by extending the `ContentBlocker` class.
+</Note>
+
+To disable blocking for specific sites, you could:
+
+1. Create a separate profile without content blocking
+2. Switch to that profile when visiting the site
+3. Or temporarily disable content blocking in settings
+
+## Technical Architecture
+
+### Unified Web Requests
+
+The content blocker uses a unified web request system to avoid conflicts:
+
+```typescript
+blocker.enableBlockingInSession(
+  unifiedWebRequests.createSession(session, SESSION_KEY)
+);
+```
+
+This ensures multiple systems (content blocker, extensions, etc.) can intercept web requests without conflicts.
+
+### Session Keys
+
+Each blocker instance uses a unique session key:
+
+```typescript
+const SESSION_KEY = 'content-blocker';
+```
+
+This allows the unified web request system to manage the blocker's hooks.
+
+### Blocker Instance Lifecycle
+
+1. **Creation**: Blocker loads prebuilt filter lists
+2. **Attachment**: Blocker attaches to session web requests
+3. **Filtering**: Requests are checked against filter lists
+4. **Blocking**: Matching requests are blocked
+5. **Events**: `request-blocked` events are emitted
+6. **Detachment**: On disable, blocker detaches from session
+7. **Cleanup**: Instance is disposed and memory freed
+
+## Future Privacy Features
+
+Potential future enhancements:
+
+- Per-site content blocking exceptions
+- Fingerprinting protection
+- User-agent spoofing
+- Cookie auto-deletion
+- Private browsing mode
+- VPN integration
+- Encrypted profile storage
+
+## Related Features
+
+- [Profiles](/features/profiles) - Profile isolation provides privacy boundaries
+- [Extensions](/features/extensions) - Review extension permissions for privacy
+- [Tabs](/features/tabs) - Each tab respects profile privacy settings

@@ -1,0 +1,237 @@
+---
+title: Architecture
+description: Understanding Flow Browser's structure and technology stack
+---
+
+## Overview
+
+Flow Browser is an Electron-based web browser built with modern web technologies. It combines the power of Chromium with a custom React-based interface to deliver a privacy-focused browsing experience.
+
+<Info>
+  Flow Browser uses an embedded SQLite database (via `better-sqlite3` and Drizzle ORM) and has **no external backend services**.
+</Info>
+
+## Project Structure
+
+The codebase follows Electron's multi-process architecture, with code organized into distinct directories:
+
+<CardGroup cols={2}>
+  <Card title="src/main" icon="server" iconType="duotone">
+    **Electron Main Process**
+    
+    Node.js process that handles:
+    - Window management
+    - System integration
+    - IPC communication
+    - Browser engine control
+    - Database operations
+  </Card>
+
+  <Card title="src/renderer" icon="browser" iconType="duotone">
+    **Frontend React Application**
+    
+    Browser UI built with:
+    - React 19
+    - TailwindCSS 4
+    - Radix UI components
+    - Motion animations
+  </Card>
+
+  <Card title="src/preload" icon="shield" iconType="duotone">
+    **Preload Scripts**
+    
+    Secure bridge between main and renderer:
+    - Context isolation
+    - IPC communication
+    - Safe API exposure
+  </Card>
+
+  <Card title="src/shared" icon="share-nodes" iconType="duotone">
+    **Shared Code**
+    
+    Code used by both processes:
+    - Type definitions
+    - Constants
+    - Utilities
+  </Card>
+</CardGroup>
+
+### Directory Details
+
+| Directory | Description |
+| --------- | ----------- |
+| `src/main` | Electron main process code |
+| `src/renderer` | Frontend React application |
+| `src/preload` | Preload scripts for secure IPC communication |
+| `src/shared` | Code shared between main and renderer |
+| `docs` | Documentation and guides |
+| `build` | Build assets (icons, etc.) |
+| `scripts` | Build and development scripts |
+
+## Technology Stack
+
+### Frontend
+
+<CardGroup cols={2}>
+  <Card title="React 19" icon="react">
+    Latest React with concurrent features
+  </Card>
+  <Card title="TailwindCSS 4" icon="wind">
+    Utility-first CSS framework
+  </Card>
+  <Card title="Radix UI" icon="layer-group">
+    Accessible component primitives
+  </Card>
+  <Card title="Motion" icon="wand-magic-sparkles">
+    Animation library (motion/react)
+  </Card>
+</CardGroup>
+
+### Backend (Main Process)
+
+<AccordionGroup>
+  <Accordion title="Electron 40 (Chromium)">
+    Provides the browser engine and cross-platform desktop capabilities. Flow uses a **Castlabs fork** for Widevine DRM support.
+  </Accordion>
+
+  <Accordion title="SQLite + Drizzle ORM">
+    - **better-sqlite3**: Fast, synchronous SQLite bindings
+    - **Drizzle ORM**: Type-safe database queries
+    - Stores bookmarks, history, settings, and session data
+  </Accordion>
+
+  <Accordion title="Chrome Extension Support">
+    - **electron-chrome-extensions**: Custom fork (@iamevan/electron-chrome-extensions)
+    - **electron-chrome-web-store**: Install extensions from Chrome Web Store
+    - Full support for Chrome extension APIs
+  </Accordion>
+
+  <Accordion title="Privacy & Security">
+    - **@ghostery/adblocker-electron**: Native ad blocking
+    - **electron-webauthn**: WebAuthn support for secure authentication
+    - **electron-context-menu**: Secure context menu handling
+  </Accordion>
+</AccordionGroup>
+
+### Build Tools
+
+- **electron-vite**: Fast Vite-based Electron bundler
+- **Vite 7**: Lightning-fast build tool and dev server
+- **TypeScript 5**: Type safety across the codebase
+- **electron-builder**: Package and distribute the app
+- **Bun**: Package manager and task runner
+
+## Castlabs Electron Fork
+
+<Warning>
+  Flow Browser uses a **Castlabs fork of Electron** instead of the standard Electron release. This is intentional and required for DRM support.
+</Warning>
+
+### Why Castlabs?
+
+The Castlabs fork includes **Widevine CDM (Content Decryption Module)** support, which allows Flow Browser to play DRM-protected content from services like:
+
+- Netflix
+- Spotify
+- Disney+
+- Amazon Prime Video
+- And other streaming platforms
+
+In `package.json`, you'll see:
+
+```json
+"electron": "https://github.com/castlabs/electron-releases#v40.1.0+wvcus"
+```
+
+### Widevine VMP Signing
+
+For production builds with full Widevine support, you need to:
+
+1. Create a Castlabs EVS account: [EVS Account Setup](https://github.com/castlabs/electron-releases/wiki/EVS#creating-an-evs-account)
+2. Configure VMP signing credentials
+3. The build pipeline will automatically sign the application
+
+<Note>
+  Development builds work without VMP signing, but DRM content may have limitations.
+</Note>
+
+## Main Process Architecture
+
+The main process is organized into controllers:
+
+### Controllers
+
+- **windows-controller**: Manages browser windows and navigation
+- **sessions-controller**: Handles Electron sessions and profiles
+- **quit-controller**: Manages application shutdown and cleanup
+- **posthog-controller**: Analytics and error tracking (privacy-focused)
+
+### IPC Communication
+
+The `src/main/ipc` directory contains IPC handlers that expose safe APIs to the renderer process:
+
+```typescript
+// Example: Main process handler
+ipcMain.handle('get-bookmarks', async () => {
+  return await db.query.bookmarks.findMany();
+});
+
+// Renderer process call (via preload)
+const bookmarks = await window.api.getBookmarks();
+```
+
+## Renderer Architecture
+
+The renderer process is a standard React application with:
+
+- **Routes**: Page components for different browser views
+- **Components**: Reusable UI components
+- **Hooks**: Custom React hooks for state management
+- **Utils**: Helper functions and utilities
+
+### Key Features
+
+- **Profiles**: Multiple user profiles with separate settings
+- **Spaces**: Organize tabs into workspaces
+- **Command Palette**: Quick access to browser functions
+- **Sidebar**: Bookmarks, history, and settings access
+- **PDF Viewer**: Built-in PDF viewing with @pdfslick/react
+
+## Animation System
+
+<Warning>
+  Flow Browser uses `motion/react`, **not** `framer-motion`. Always import from `motion/react`.
+</Warning>
+
+```typescript
+import { motion } from 'motion/react';
+
+<motion.div
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+>
+  Content
+</motion.div>
+```
+
+## Testing Strategy
+
+<Info>
+  Flow Browser does **not have automated test suites**. Quality assurance is done through:
+</Info>
+
+- **Type checking**: `bun typecheck` (TypeScript)
+- **Linting**: `bun lint` (ESLint)
+- **Manual testing**: During development
+- **CI validation**: Automated checks on pull requests
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Development Setup" icon="screwdriver-wrench" href="/development/setup">
+    Set up your development environment
+  </Card>
+  <Card title="Building" icon="hammer" href="/development/building">
+    Learn how to build Flow Browser
+  </Card>
+</CardGroup>

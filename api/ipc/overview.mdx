@@ -1,0 +1,519 @@
+---
+title: 'IPC Overview'
+description: 'Learn about Flow Browser IPC (Inter-Process Communication) architecture and how to use the typed IPC system'
+icon: 'arrows-left-right'
+---
+
+## Introduction
+
+Flow Browser uses Electron's IPC (Inter-Process Communication) system to enable secure communication between the main process and renderer processes. The IPC layer is fully typed using TypeScript interfaces, providing type safety and autocomplete support.
+
+## Architecture
+
+Flow's IPC system follows a structured, permission-based architecture:
+
+### Process Separation
+
+- **Main Process** (`src/main/ipc/`): Handles IPC requests, manages browser state, and controls system resources
+- **Renderer Process**: UI code running in browser windows that invokes IPC methods via `window.flow`
+- **Preload Script** (`src/preload/index.ts`): Bridges the two processes using Electron's `contextBridge`
+
+### Key Components
+
+<CardGroup cols={2}>
+  <Card title="IPC Handlers" icon="server" href="#ipc-handlers">
+    Main process modules that register `ipcMain` handlers
+  </Card>
+  <Card title="Typed Interfaces" icon="code" href="#typed-interfaces">
+    TypeScript interfaces defining the IPC API contracts
+  </Card>
+  <Card title="Preload Bridge" icon="bridge" href="#preload-bridge">
+    Context bridge exposing `window.flow` API to renderers
+  </Card>
+  <Card title="Listener Manager" icon="tower-broadcast" href="#listener-manager">
+    Opt-in subscription system for push-style updates
+  </Card>
+</CardGroup>
+
+## IPC Handlers
+
+IPC handlers are organized by functional area in `src/main/ipc/`. Each module registers listeners using `ipcMain.on()` (one-way) or `ipcMain.handle()` (request-response):
+
+```typescript
+// src/main/ipc/browser/navigation.ts
+import { ipcMain } from "electron";
+import { tabsController } from "@/controllers/tabs-controller";
+
+ipcMain.on("navigation:go-to", (event, url: string, tabId?: number) => {
+  const tab = tabId 
+    ? tabsController.getTabById(tabId) 
+    : tabsController.getFocusedTab(window.id, currentSpace);
+  
+  if (tab) {
+    tab.loadURL(url);
+  }
+});
+
+ipcMain.handle("navigation:get-tab-status", async (_event, tabId: number) => {
+  const tab = tabsController.getTabById(tabId);
+  if (!tab) return null;
+  
+  return {
+    navigationHistory: tab.webContents.navigationHistory.getAllEntries(),
+    activeIndex: tab.webContents.navigationHistory.getActiveIndex(),
+    canGoBack: tab.webContents.navigationHistory.canGoBack(),
+    canGoForward: tab.webContents.navigationHistory.canGoForward()
+  };
+});
+```
+
+### Handler Registration
+
+All IPC modules are imported in `src/main/ipc/index.ts`. Simply importing a module is enough to register its handlers:
+
+```typescript
+// src/main/ipc/index.ts
+import "@/ipc/app/app";
+import "@/ipc/browser/browser";
+import "@/ipc/browser/tabs";
+import "@/ipc/browser/navigation";
+import "@/ipc/session/profiles";
+// ... more imports
+```
+
+## Typed Interfaces
+
+Every IPC namespace has a corresponding TypeScript interface in `src/shared/flow/interfaces/`. These interfaces define the API contract:
+
+```typescript
+// src/shared/flow/interfaces/browser/navigation.ts
+export interface FlowNavigationAPI {
+  /**
+   * Navigates to a specific URL
+   * @param url The URL to navigate to
+   * @param tabId The id of the tab to navigate (optional, uses focused tab if not provided)
+   */
+  goTo: (url: string, tabId?: number) => void;
+
+  /**
+   * Gets the navigation status of a tab
+   * @param tabId The id of the tab to get the navigation status of
+   */
+  getTabNavigationStatus: (tabId: number) => Promise<TabNavigationStatus | null>;
+
+  /**
+   * Stops loading a tab
+   * @param tabId The id of the tab to stop loading
+   */
+  stopLoadingTab: (tabId: number) => void;
+
+  /**
+   * Reloads a tab
+   * @param tabId The id of the tab to reload
+   */
+  reloadTab: (tabId: number) => void;
+
+  /**
+   * Navigates to a specific navigation entry
+   * @param tabId The id of the tab to navigate
+   * @param index The index of the navigation entry to navigate to
+   */
+  goToNavigationEntry: (tabId: number, index: number) => void;
+}
+```
+
+## Preload Bridge
+
+The preload script (`src/preload/index.ts`) implements the typed interfaces and exposes them via `contextBridge`:
+
+```typescript
+// src/preload/index.ts
+import { contextBridge, ipcRenderer } from "electron";
+import { FlowNavigationAPI } from "~/flow/interfaces/browser/navigation";
+
+const navigationAPI: FlowNavigationAPI = {
+  goTo: (url: string, tabId?: number) => {
+    return ipcRenderer.send("navigation:go-to", url, tabId);
+  },
+  getTabNavigationStatus: (tabId: number) => {
+    return ipcRenderer.invoke("navigation:get-tab-status", tabId);
+  },
+  stopLoadingTab: (tabId: number) => {
+    return ipcRenderer.send("navigation:stop-loading-tab", tabId);
+  },
+  reloadTab: (tabId: number) => {
+    return ipcRenderer.send("navigation:reload-tab", tabId);
+  },
+  goToNavigationEntry: (tabId: number, index: number) => {
+    return ipcRenderer.send("navigation:go-to-entry", tabId, index);
+  }
+};
+
+contextBridge.exposeInMainWorld("flow", {
+  navigation: navigationAPI,
+  // ... other APIs
+});
+```
+
+## Listener Manager
+
+For push-style updates (main → renderer broadcasts), Flow uses an opt-in subscription system managed by `listeners-manager.ts`:
+
+### Subscribing to Updates
+
+Renderers must explicitly subscribe to channels they want to receive:
+
+```typescript
+// Renderer process
+function listenOnIPCChannel(channel: string, callback: (...args: any[]) => void) {
+  const listenerId = generateUUID();
+  
+  // Register this listener with the main process
+  ipcRenderer.send("listeners:add", channel, listenerId);
+  
+  // Listen for messages
+  ipcRenderer.on(channel, (_event, ...args) => {
+    callback(...args);
+  });
+  
+  // Return cleanup function
+  return () => {
+    ipcRenderer.send("listeners:remove", channel, listenerId);
+    ipcRenderer.removeListener(channel, callback);
+  };
+}
+
+// Example usage
+const unsubscribe = listenOnIPCChannel("tabs:on-data-changed", (data) => {
+  console.log("Tabs updated:", data);
+});
+
+// Later: clean up
+unsubscribe();
+```
+
+### Broadcasting from Main Process
+
+Main process code uses helper functions from `listeners-manager.ts`:
+
+```typescript
+import { sendMessageToListeners } from "@/ipc/listeners-manager";
+
+// Broadcast to all subscribed renderers
+sendMessageToListeners("tabs:on-data-changed", updatedTabsData);
+```
+
+<Info>
+The listener manager automatically cleans up subscriptions when `WebContents` is destroyed, preventing memory leaks.
+</Info>
+
+## Permission System
+
+Flow's IPC APIs are protected by a permission system based on the renderer's protocol and hostname:
+
+```typescript
+// src/preload/index.ts
+type Permission = "all" | "app" | "browser" | "session" | "settings";
+
+function hasPermission(permission: Permission) {
+  const isFlowProtocol = location.protocol === "flow:";
+  const isFlowInternalProtocol = location.protocol === "flow-internal:";
+  
+  const isMainUI = location.hostname === "main-ui" && isFlowInternalProtocol;
+  const isBrowserUI = isMainUI || /* ... */;
+  
+  switch (permission) {
+    case "all":
+      return true;
+    case "app":
+      return isFlowInternalProtocol || /* extensions */;
+    case "browser":
+      return isBrowserUI || /* omnibox */;
+    case "session":
+      return isFlowInternalProtocol || isBrowserUI;
+    case "settings":
+      return isFlowInternalProtocol;
+    default:
+      return false;
+  }
+}
+```
+
+### Permission Levels
+
+<ParamField path="all" type="Permission Level">
+  Available to all renderers, including web pages
+</ParamField>
+
+<ParamField path="app" type="Permission Level">
+  Available to Flow internal protocols and extension pages
+</ParamField>
+
+<ParamField path="browser" type="Permission Level">
+  Available to browser UI and omnibox
+</ParamField>
+
+<ParamField path="session" type="Permission Level">
+  Available to Flow internal protocols, browser UI, and omnibox
+</ParamField>
+
+<ParamField path="settings" type="Permission Level">
+  Available only to Flow internal protocols
+</ParamField>
+
+## IPC Namespaces
+
+The Flow API is organized into logical namespaces:
+
+### App APIs
+- [`window.flow.app`](/api/ipc/app) - Application info, clipboard, default browser
+- [`window.flow.windows`](/api/ipc/window) - Window management and controls
+- `window.flow.extensions` - Extension management
+- `window.flow.updates` - Auto-update functionality
+- `window.flow.actions` - Global actions and shortcuts
+- `window.flow.shortcuts` - Keyboard shortcut configuration
+
+### Browser APIs
+- [`window.flow.browser`](/api/ipc/browser) - Profile loading, window creation
+- `window.flow.tabs` - Tab management (create, close, move, etc.)
+- `window.flow.navigation` - Page navigation (go to URL, back, forward, reload)
+- `window.flow.page` - Page layout and bounds
+- `window.flow.interface` - UI component positioning and window controls
+- `window.flow.omnibox` - Omnibox (address bar) control
+- `window.flow.findInPage` - Find in page functionality
+
+### Session APIs
+- `window.flow.profiles` - Profile CRUD operations
+- `window.flow.spaces` - Space (tab group) management
+
+### Settings APIs
+- `window.flow.settings` - Settings storage
+- `window.flow.icons` - App icon customization
+- `window.flow.openExternal` - External link handling preferences
+- `window.flow.onboarding` - Onboarding flow control
+
+## Usage Examples
+
+### Navigating to a URL
+
+```typescript
+// Navigate the focused tab
+window.flow.navigation.goTo("https://example.com");
+
+// Navigate a specific tab
+window.flow.navigation.goTo("https://example.com", tabId);
+```
+
+### Creating a New Tab
+
+```typescript
+// Create tab in background
+await window.flow.tabs.newTab("https://example.com", false, spaceId);
+
+// Create tab in foreground
+await window.flow.tabs.newTab("https://example.com", true, spaceId);
+```
+
+### Listening for Tab Updates
+
+```typescript
+import { useEffect, useState } from "react";
+
+function TabsList() {
+  const [tabs, setTabs] = useState([]);
+  
+  useEffect(() => {
+    // Initial fetch
+    window.flow.tabs.getData().then(setTabs);
+    
+    // Subscribe to updates
+    const unsubscribe = window.flow.tabs.onDataUpdated((data) => {
+      setTabs(data);
+    });
+    
+    return unsubscribe;
+  }, []);
+  
+  return (
+    <ul>
+      {tabs.map(tab => (
+        <li key={tab.id}>{tab.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### Getting Window State
+
+```typescript
+const state = await window.flow.windows.getCurrentWindowState();
+console.log("Maximized:", state.isMaximized);
+console.log("Fullscreen:", state.isFullscreen);
+
+// Listen for changes
+const unsubscribe = window.flow.windows.onCurrentWindowStateChanged((state) => {
+  console.log("Window state changed:", state);
+});
+```
+
+## Adding a New IPC Namespace
+
+To add a new IPC namespace to Flow:
+
+<Steps>
+  <Step title="Create the TypeScript interface">
+    Define your API contract in `src/shared/flow/interfaces/[category]/[name].ts`:
+    
+    ```typescript
+    // src/shared/flow/interfaces/browser/example.ts
+    export interface FlowExampleAPI {
+      /**
+       * Does something cool
+       * @param param1 Description of param1
+       */
+      doSomething: (param1: string) => Promise<boolean>;
+    }
+    ```
+  </Step>
+  
+  <Step title="Implement IPC handlers">
+    Create handlers in `src/main/ipc/[category]/[name].ts`:
+    
+    ```typescript
+    // src/main/ipc/browser/example.ts
+    import { ipcMain } from "electron";
+    
+    ipcMain.handle("example:do-something", async (_event, param1: string) => {
+      // Implementation
+      return true;
+    });
+    ```
+  </Step>
+  
+  <Step title="Register handlers">
+    Import the module in `src/main/ipc/index.ts`:
+    
+    ```typescript
+    import "@/ipc/browser/example";
+    ```
+  </Step>
+  
+  <Step title="Implement preload bridge">
+    Add the API implementation in `src/preload/index.ts`:
+    
+    ```typescript
+    const exampleAPI: FlowExampleAPI = {
+      doSomething: async (param1: string) => {
+        return ipcRenderer.invoke("example:do-something", param1);
+      }
+    };
+    
+    // Add to flowAPI object
+    const flowAPI = {
+      // ...
+      example: wrapAPI(exampleAPI, "browser")
+    };
+    ```
+  </Step>
+  
+  <Step title="Use in renderer">
+    Call the API from your React components:
+    
+    ```typescript
+    const result = await window.flow.example.doSomething("test");
+    ```
+  </Step>
+</Steps>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use ipcMain.handle for request-response patterns">
+    When you need a return value from the main process, use `ipcMain.handle()` and `ipcRenderer.invoke()`:
+    
+    ```typescript
+    // Main process
+    ipcMain.handle("get-data", async () => {
+      return { data: "value" };
+    });
+    
+    // Renderer
+    const data = await ipcRenderer.invoke("get-data");
+    ```
+  </Accordion>
+  
+  <Accordion title="Use ipcMain.on for one-way messages">
+    When you don't need a response, use `ipcMain.on()` and `ipcRenderer.send()`:
+    
+    ```typescript
+    // Main process
+    ipcMain.on("log-message", (_event, message: string) => {
+      console.log(message);
+    });
+    
+    // Renderer
+    ipcRenderer.send("log-message", "Hello!");
+    ```
+  </Accordion>
+  
+  <Accordion title="Always clean up listeners">
+    Return cleanup functions from listener registration:
+    
+    ```typescript
+    useEffect(() => {
+      const unsubscribe = window.flow.tabs.onDataUpdated(handleUpdate);
+      return unsubscribe; // Clean up on unmount
+    }, []);
+    ```
+  </Accordion>
+  
+  <Accordion title="Use the listener manager for broadcasts">
+    Instead of calling `webContents.send()` directly, use the listener manager to only send to subscribed renderers:
+    
+    ```typescript
+    import { sendMessageToListeners } from "@/ipc/listeners-manager";
+    
+    sendMessageToListeners("my-channel", data);
+    ```
+  </Accordion>
+  
+  <Accordion title="Validate permissions in preload">
+    Use the `wrapAPI` helper to enforce permission requirements:
+    
+    ```typescript
+    const flowAPI = {
+      myAPI: wrapAPI(myAPIImpl, "browser") // Requires browser permission
+    };
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Security Considerations
+
+<Warning>
+  Never expose `ipcRenderer` directly to untrusted content. Always use `contextBridge` in the preload script.
+</Warning>
+
+- **Validate all inputs**: IPC handlers should validate and sanitize all parameters
+- **Check permissions**: Use the permission system to restrict sensitive APIs
+- **Avoid exposing sensitive data**: Don't return credentials or secrets via IPC
+- **Use typed interfaces**: TypeScript interfaces help prevent type-related bugs
+- **Limit broadcast scope**: Use the listener manager to avoid sending updates to unsubscribed renderers
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Browser IPC" icon="browser" href="/api/ipc/browser">
+    Profile loading and window creation APIs
+  </Card>
+  <Card title="App IPC" icon="application" href="/api/ipc/app">
+    Application info, clipboard, and window controls
+  </Card>
+  <Card title="Window IPC" icon="window" href="/api/ipc/window">
+    Window management and state APIs
+  </Card>
+  <Card title="Electron IPC Docs" icon="book" href="https://www.electronjs.org/docs/latest/tutorial/ipc">
+    Official Electron IPC documentation
+  </Card>
+</CardGroup>

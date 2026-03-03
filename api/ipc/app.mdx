@@ -1,0 +1,414 @@
+---
+title: 'App IPC'
+description: 'IPC APIs for application information, clipboard, and system integration'
+icon: 'application'
+---
+
+## Overview
+
+The App IPC namespace provides APIs for accessing application information, clipboard operations, default browser settings, and other system-level functionality. These APIs are available through the `window.flow.app` object.
+
+## App API
+
+Core application information and utilities.
+
+### Source Files
+
+- **Interface**: `src/shared/flow/interfaces/app/app.ts`
+- **Handler**: `src/main/ipc/app/app.ts`
+- **Preload**: `src/preload/index.ts:630-665`
+
+### Methods
+
+<ParamField path="getAppInfo" type="() => Promise<AppInfo>">
+  Gets comprehensive information about the Flow Browser application.
+  
+  <Tabs>
+    <Tab title="Usage">
+      ```typescript
+      const appInfo = await window.flow.app.getAppInfo();
+      console.log("Flow version:", appInfo.app_version);
+      console.log("Running on:", appInfo.os);
+      console.log("Chrome version:", appInfo.chrome_version);
+      console.log("Update channel:", appInfo.update_channel);
+      ```
+    </Tab>
+    <Tab title="Implementation">
+      ```typescript
+      // src/preload/index.ts:632-650
+      getAppInfo: async () => {
+        const appInfo = await ipcRenderer.invoke("app:get-info");
+        const appVersion = appInfo.version;
+        const updateChannel = appInfo.packaged ? "Stable" : "Development";
+        const os = getOSFromPlatform(process.platform);
+        
+        return {
+          app_version: appVersion,
+          build_number: appVersion,
+          node_version: process.versions.node,
+          chrome_version: process.versions.chrome,
+          electron_version: process.versions.electron,
+          os: os,
+          update_channel: updateChannel
+        };
+      }
+      ```
+    </Tab>
+  </Tabs>
+  
+  <ResponseField name="app_version" type="string">
+    Flow Browser version (e.g., "1.0.0")
+  </ResponseField>
+  
+  <ResponseField name="build_number" type="string">
+    Build number (same as app_version)
+  </ResponseField>
+  
+  <ResponseField name="node_version" type="string">
+    Node.js version used by Electron
+  </ResponseField>
+  
+  <ResponseField name="chrome_version" type="string">
+    Chromium version used by Electron
+  </ResponseField>
+  
+  <ResponseField name="electron_version" type="string">
+    Electron version
+  </ResponseField>
+  
+  <ResponseField name="os" type="string">
+    Operating system ("macOS", "Windows", "Linux", or "Unknown")
+  </ResponseField>
+  
+  <ResponseField name="update_channel" type="'Stable' | 'Beta' | 'Alpha' | 'Development'">
+    Update channel - "Stable" for packaged builds, "Development" for dev mode
+  </ResponseField>
+</ParamField>
+
+<ParamField path="getPlatform" type="() => string">
+  Gets the platform of the current device.
+  
+  ```typescript
+  const platform = window.flow.app.getPlatform();
+  // Returns: "darwin" | "win32" | "linux" | etc.
+  ```
+  
+  <Info>
+    This method returns Node.js platform identifiers from `process.platform`. It's available to all pages everywhere (permission level: "all").
+  </Info>
+  
+  Common return values:
+  - `"darwin"` - macOS
+  - `"win32"` - Windows
+  - `"linux"` - Linux
+</ParamField>
+
+<ParamField path="writeTextToClipboard" type="(text: string) => void">
+  Writes text to the system clipboard.
+  
+  <Tabs>
+    <Tab title="Usage">
+      ```typescript
+      window.flow.app.writeTextToClipboard("Hello, World!");
+      ```
+    </Tab>
+    <Tab title="Handler">
+      ```typescript
+      // src/main/ipc/app/app.ts:12-14
+      ipcMain.on("app:write-text-to-clipboard", (_event, text: string) => {
+        clipboard.writeText(text);
+      });
+      ```
+    </Tab>
+  </Tabs>
+  
+  <ParamField path="text" type="string" required>
+    The text to copy to the clipboard
+  </ParamField>
+</ParamField>
+
+<ParamField path="setDefaultBrowser" type="() => Promise<boolean>">
+  Sets Flow Browser as the default browser for the system.
+  
+  <Tabs>
+    <Tab title="Usage">
+      ```typescript
+      const success = await window.flow.app.setDefaultBrowser();
+      if (success) {
+        console.log("Flow is now the default browser");
+      } else {
+        console.log("Failed to set as default browser");
+      }
+      ```
+    </Tab>
+    <Tab title="Handler">
+      ```typescript
+      // src/main/ipc/app/app.ts:16-18
+      ipcMain.handle("app:set-default-browser", async () => {
+        return await defaultBrowserController.setDefaultBrowser();
+      });
+      ```
+    </Tab>
+  </Tabs>
+  
+  <Warning>
+    This operation may require user interaction on some operating systems. The behavior varies by platform:
+    - **macOS**: Opens System Preferences for the user to confirm
+    - **Windows**: May open Windows Settings
+    - **Linux**: Implementation varies by desktop environment
+  </Warning>
+</ParamField>
+
+<ParamField path="getDefaultBrowser" type="() => Promise<boolean>">
+  Checks whether Flow Browser is currently set as the default browser.
+  
+  ```typescript
+  const isDefault = await window.flow.app.getDefaultBrowser();
+  if (!isDefault) {
+    // Prompt user to set Flow as default
+  }
+  ```
+</ParamField>
+
+## Example: About Dialog
+
+Here's an example of building an "About" dialog using the App API:
+
+```typescript
+import { useEffect, useState } from "react";
+
+function AboutDialog() {
+  const [appInfo, setAppInfo] = useState(null);
+  const [isDefaultBrowser, setIsDefaultBrowser] = useState(false);
+  
+  useEffect(() => {
+    // Load app info
+    window.flow.app.getAppInfo().then(setAppInfo);
+    
+    // Check if Flow is the default browser
+    window.flow.app.getDefaultBrowser().then(setIsDefaultBrowser);
+  }, []);
+  
+  const handleSetDefault = async () => {
+    const success = await window.flow.app.setDefaultBrowser();
+    if (success) {
+      setIsDefaultBrowser(true);
+    }
+  };
+  
+  const handleCopyVersion = () => {
+    if (appInfo) {
+      window.flow.app.writeTextToClipboard(
+        `Flow Browser ${appInfo.app_version}\n` +
+        `Electron ${appInfo.electron_version}\n` +
+        `Chromium ${appInfo.chrome_version}\n` +
+        `Node.js ${appInfo.node_version}\n` +
+        `OS: ${appInfo.os}`
+      );
+    }
+  };
+  
+  if (!appInfo) return <div>Loading...</div>;
+  
+  return (
+    <div className="about-dialog">
+      <h1>Flow Browser</h1>
+      <p className="version">Version {appInfo.app_version}</p>
+      <p className="channel">{appInfo.update_channel} Channel</p>
+      
+      <div className="technical-info">
+        <h2>Technical Information</h2>
+        <dl>
+          <dt>Electron:</dt>
+          <dd>{appInfo.electron_version}</dd>
+          
+          <dt>Chromium:</dt>
+          <dd>{appInfo.chrome_version}</dd>
+          
+          <dt>Node.js:</dt>
+          <dd>{appInfo.node_version}</dd>
+          
+          <dt>Operating System:</dt>
+          <dd>{appInfo.os}</dd>
+        </dl>
+        
+        <button onClick={handleCopyVersion}>
+          Copy Version Info
+        </button>
+      </div>
+      
+      <div className="default-browser">
+        {isDefaultBrowser ? (
+          <p>Flow is your default browser</p>
+        ) : (
+          <button onClick={handleSetDefault}>
+            Set as Default Browser
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+```
+
+## Example: Platform-Specific UI
+
+Use `getPlatform()` to conditionally render platform-specific UI:
+
+```typescript
+import { useEffect, useState } from "react";
+
+function PlatformSpecificUI() {
+  const [platform, setPlatform] = useState("");
+  
+  useEffect(() => {
+    setPlatform(window.flow.app.getPlatform());
+  }, []);
+  
+  const getShortcutKey = () => {
+    return platform === "darwin" ? "⌘" : "Ctrl";
+  };
+  
+  const getShortcutText = (action: string) => {
+    const key = getShortcutKey();
+    switch (action) {
+      case "copy":
+        return `${key}+C`;
+      case "paste":
+        return `${key}+V`;
+      case "new-tab":
+        return `${key}+T`;
+      default:
+        return "";
+    }
+  };
+  
+  return (
+    <div>
+      <h2>Keyboard Shortcuts</h2>
+      <ul>
+        <li>New Tab: {getShortcutText("new-tab")}</li>
+        <li>Copy: {getShortcutText("copy")}</li>
+        <li>Paste: {getShortcutText("paste")}</li>
+      </ul>
+      
+      {platform === "darwin" && (
+        <div className="macos-specific">
+          <p>macOS-specific features enabled</p>
+        </div>
+      )}
+      
+      {platform === "win32" && (
+        <div className="windows-specific">
+          <p>Windows-specific features enabled</p>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+## Example: Copy Link Context Menu
+
+Implement a "Copy Link" feature in a custom context menu:
+
+```typescript
+function LinkContextMenu({ url, onClose }) {
+  const handleCopyLink = () => {
+    window.flow.app.writeTextToClipboard(url);
+    onClose();
+  };
+  
+  return (
+    <div className="context-menu">
+      <button onClick={handleCopyLink}>
+        Copy Link Address
+      </button>
+      <button onClick={() => {
+        window.flow.navigation.goTo(url);
+        onClose();
+      }}>
+        Open Link
+      </button>
+      <button onClick={() => {
+        window.flow.tabs.newTab(url, false);
+        onClose();
+      }}>
+        Open Link in New Tab
+      </button>
+    </div>
+  );
+}
+```
+
+## Permissions
+
+The App API uses the following permission levels:
+
+<ResponseField name="getAppInfo" type="app">
+  Available to Flow internal protocols and extension pages
+</ResponseField>
+
+<ResponseField name="getPlatform" type="all">
+  Available to all pages everywhere (special exception)
+</ResponseField>
+
+<ResponseField name="writeTextToClipboard" type="app">
+  Available to Flow internal protocols and extension pages
+</ResponseField>
+
+<ResponseField name="setDefaultBrowser" type="app">
+  Available to Flow internal protocols and extension pages
+</ResponseField>
+
+<ResponseField name="getDefaultBrowser" type="app">
+  Available to Flow internal protocols and extension pages
+</ResponseField>
+
+<Info>
+See the [IPC Overview](/api/ipc/overview#permission-system) for more information about the permission system.
+</Info>
+
+## Type Definitions
+
+### AppInfo
+
+```typescript
+interface AppInfo {
+  app_version: string;           // Flow Browser version
+  build_number: string;          // Build number (same as app_version)
+  node_version: string;          // Node.js version
+  chrome_version: string;        // Chromium version
+  electron_version: string;      // Electron version
+  os: string;                    // Operating system
+  update_channel: "Stable" | "Beta" | "Alpha" | "Development";
+}
+```
+
+### UpdateChannel
+
+```typescript
+type UpdateChannel = "Stable" | "Beta" | "Alpha" | "Development";
+```
+
+- **Stable**: Production builds installed from official releases
+- **Beta**: Pre-release builds for testing
+- **Alpha**: Early pre-release builds
+- **Development**: Unpackaged builds running in dev mode
+
+## Related APIs
+
+<CardGroup cols={2}>
+  <Card title="Window IPC" icon="window" href="/api/ipc/window">
+    Window management and controls
+  </Card>
+  <Card title="Browser IPC" icon="browser" href="/api/ipc/browser">
+    Browser profiles and tab management
+  </Card>
+  <Card title="IPC Overview" icon="arrows-left-right" href="/api/ipc/overview">
+    Learn about Flow's IPC architecture
+  </Card>
+  <Card title="Updates API" icon="download" href="#">
+    Auto-update functionality (coming soon)
+  </Card>
+</CardGroup>

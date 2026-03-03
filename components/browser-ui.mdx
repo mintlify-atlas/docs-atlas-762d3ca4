@@ -1,0 +1,279 @@
+---
+title: 'Browser UI'
+description: 'The main browser user interface component that orchestrates the complete browsing experience'
+---
+
+## Overview
+
+The `BrowserUI` component is the top-level React component that renders the complete Flow Browser interface. It orchestrates all major UI systems including the sidebar, topbar, tab content area, and popup windows.
+
+## Architecture
+
+BrowserUI follows a provider-based architecture with multiple context providers wrapping the main UI layout:
+
+```tsx
+BrowserUI
+├── AppUpdatesProvider
+├── SettingsProvider
+├── BrowserSidebarProvider
+├── AdaptiveTopbarProvider
+├── SpacesProvider
+├── TabsProvider
+├── BrowserActionProvider
+└── ExtensionsProviderWithSpaces
+```
+
+## Component Types
+
+Flow Browser supports two types of browser UI:
+
+<ParamField path="type" type="'main' | 'popup'">
+  - `main`: Full browser window with sidebar navigation
+  - `popup`: Compact window with inline toolbar (no sidebar)
+</ParamField>
+
+## Main Components
+
+### BrowserContent
+
+The `BrowserContent` component represents the web page viewing area. Instead of directly measuring bounds, it sends declarative layout parameters to the main Electron process.
+
+**Location**: `src/renderer/src/components/browser-ui/browser-content.tsx`
+
+```tsx
+import BrowserContent from "@/components/browser-ui/browser-content";
+
+<BrowserContent />
+```
+
+**Key Features**:
+- Uses `useLayoutEffect` for synchronous IPC communication before paint
+- Sends layout params to main process via `flow.page.setLayoutParams()`
+- Coordinates with sidebar animations and topbar visibility
+- Handles resize events during sidebar drag operations
+
+**Layout Parameters**:
+
+```typescript
+interface PageLayoutParams {
+  topbarHeight: number;
+  topbarVisible: boolean;
+  sidebarWidth: number;
+  sidebarSide: "left" | "right";
+  sidebarVisible: boolean;
+  sidebarAnimating: boolean;
+  contentTopOffset: number;
+}
+```
+
+### AdaptiveTopbar
+
+The `AdaptiveTopbar` dynamically adjusts window controls based on platform and sidebar position.
+
+**Location**: `src/renderer/src/components/browser-ui/adaptive-topbar.tsx`
+
+```tsx
+import { AdaptiveTopbar, AdaptiveTopbarProvider } from "@/components/browser-ui/adaptive-topbar";
+
+<AdaptiveTopbarProvider>
+  <AdaptiveTopbar />
+</AdaptiveTopbarProvider>
+```
+
+**Platform Behavior**:
+
+<Tabs>
+  <Tab title="macOS">
+    - Shows window controls on the left side of the sidebar
+    - Height: 34px when sidebar is on the right, 0px when on the left
+    - Uses `SidebarWindowControlsMacOS` component
+  </Tab>
+  <Tab title="Windows/Linux">
+    - Height: 30px
+    - Shows controls in the topbar (Windows controls on Linux)
+  </Tab>
+</Tabs>
+
+**Context Values**:
+
+```tsx
+interface AdaptiveTopbarContextValue {
+  topbarHeight: number;
+  topbarVisible: boolean;
+  isFullscreen: boolean;
+  contentTopOffset: number;
+  setContentTopOffset: (offset: number) => void;
+}
+```
+
+### PresenceSidebar
+
+A wrapper component that manages `AnimatePresence` for sidebar transitions between attached and floating modes.
+
+**Location**: `src/renderer/src/components/browser-ui/main.tsx:62`
+
+```tsx
+<PresenceSidebar
+  sidebarMode="attached-left"
+  targetSidebarModes={["attached-left", "floating-left"]}
+  direction="left"
+  order={1}
+/>
+```
+
+**Props**:
+
+<ParamField path="sidebarMode" type="BrowserSidebarMode">
+  Current sidebar mode: `attached-left`, `attached-right`, `floating-left`, `floating-right`, or `hidden`
+</ParamField>
+
+<ParamField path="targetSidebarModes" type="BrowserSidebarMode[]">
+  Array of modes this instance should render for
+</ParamField>
+
+<ParamField path="direction" type="'left' | 'right'">
+  Which side of the window the sidebar appears on
+</ParamField>
+
+<ParamField path="order" type="number">
+  ResizablePanel order (1 for left, 3 for right, 2 for center content)
+</ParamField>
+
+### PopupToolbar
+
+A compact navigation toolbar for popup windows that replaces the full sidebar.
+
+**Location**: `src/renderer/src/components/browser-ui/main.tsx:169`
+
+```tsx
+// Rendered automatically when type="popup"
+<PopupToolbar />
+```
+
+Includes:
+- `NavigationControls` (back, forward, reload)
+- `AddressBar` for URL display and search
+- Reports height via `contentTopOffset` to position tab content below it
+
+## Layout System
+
+BrowserUI uses a ResizablePanel system for flexible layouts:
+
+```tsx
+<ResizablePanelGroupWithProvider direction="horizontal">
+  <PresenceSidebar order={1} direction="left" />  {/* Sidebar */}
+  <ResizablePanel order={2}>                      {/* Content */}
+    <BrowserContent />
+  </ResizablePanel>
+  <PresenceSidebar order={3} direction="right" /> {/* Sidebar */}
+</ResizablePanelGroupWithProvider>
+```
+
+## Performance Optimizations
+
+### Isolated Tab-Dependent Components
+
+To prevent layout re-renders on every tab update, tab-dependent logic is isolated:
+
+**WindowTitle** (`main.tsx:104`)
+```tsx
+const WindowTitle = memo(function WindowTitle() {
+  const focusedTab = useFocusedTab();
+  if (!focusedTab?.title) return null;
+  return <title>{`${focusedTab.title} | Flow`}</title>;
+});
+```
+
+**LoadingIndicator** (`main.tsx:124`)
+```tsx
+const LoadingIndicator = memo(function LoadingIndicator() {
+  const isActiveTabLoading = useFocusedTabLoading();
+  return (
+    <AnimatePresence>
+      {isActiveTabLoading && (
+        <motion.div className="loading-bar">...</motion.div>
+      )}
+    </AnimatePresence>
+  );
+});
+```
+
+## Special Features
+
+### FullscreenGuard
+
+Manages UI visibility when a tab enters fullscreen mode:
+
+```tsx
+function FullscreenGuard({ children }: { children: React.ReactNode }) {
+  const isFullscreen = useFocusedTabFullscreen();
+  const { setForceFloating } = useBrowserSidebar();
+  
+  useEffect(() => {
+    setForceFloating(isFullscreen);
+  }, [isFullscreen, setForceFloating]);
+  
+  return <>{children}</>;
+}
+```
+
+### AutoNewTab
+
+Automatically opens a new tab when the browser starts with no tabs:
+
+```tsx
+function AutoNewTab({ isReady }: { isReady: boolean }) {
+  const { tabGroups } = useTabsGroups();
+  
+  useEffect(() => {
+    if (isReady && tabGroups.length === 0) {
+      flow.newTab.open();
+    }
+  }, [isReady, tabGroups.length]);
+  
+  return null;
+}
+```
+
+## Usage Example
+
+```tsx
+import { BrowserUI } from "@/components/browser-ui/main";
+
+// Main browser window
+function App() {
+  return <BrowserUI type="main" />;
+}
+
+// Popup window
+function PopupWindow() {
+  return <BrowserUI type="popup" />;
+}
+```
+
+## CSS Classes
+
+The main container uses these classes:
+
+```tsx
+className="w-screen h-screen overflow-hidden
+  bg-linear-to-br from-space-background-start/65 to-space-background-end/65
+  transition-colors duration-150
+  flex flex-col
+  app-drag"
+```
+
+- `app-drag`: Enables window dragging (from titlebar area)
+- `remove-app-drag`: Disables dragging for specific areas (buttons, content)
+
+## Related Documentation
+
+- [Sidebar Component](/components/sidebar) - Vertical navigation panel
+- [Tabs Management](/components/tabs) - Tab system and grouping
+- [Portal Component](/components/portal) - Floating window system
+
+## Design Documents
+
+For implementation details, see:
+- `design/DECLARATIVE_PAGE_BOUNDS.md` - Layout parameter system
+- Source: `src/renderer/src/components/browser-ui/main.tsx`

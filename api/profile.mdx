@@ -1,0 +1,349 @@
+---
+title: 'LoadedProfile'
+description: 'Represents a loaded user profile with session, extensions, and settings'
+---
+
+The `LoadedProfile` interface represents a user profile that has been loaded into memory with its associated Electron session, extensions, and configuration.
+
+## Overview
+
+A LoadedProfile encapsulates:
+
+- User profile data and preferences
+- Electron session for cookies, cache, and web storage
+- Extension management and Chrome Web Store integration
+- Custom new tab URL (can be overridden by extensions)
+
+## Structure
+
+```typescript
+interface LoadedProfile {
+  readonly profileId: string;
+  readonly profileData: ProfileData;
+  readonly session: Session;
+  readonly extensions: ElectronChromeExtensions;
+  readonly extensionsManager: ExtensionManager;
+  newTabUrl: string;
+  unload: () => void;
+}
+```
+
+## Properties
+
+<ResponseField name="profileId" type="string" required>
+  Unique identifier for the profile (readonly)
+</ResponseField>
+
+<ResponseField name="profileData" type="ProfileData" required>
+  Profile metadata and settings (readonly)
+  
+  Contains profile name, creation date, preferences, etc.
+</ResponseField>
+
+<ResponseField name="session" type="Session" required>
+  Electron Session object for this profile (readonly)
+  
+  Manages cookies, cache, local storage, and web requests. Each profile has an isolated session.
+</ResponseField>
+
+<ResponseField name="extensions" type="ElectronChromeExtensions" required>
+  Extension runtime manager (readonly)
+  
+  Handles extension APIs, tab management, and browser actions.
+</ResponseField>
+
+<ResponseField name="extensionsManager" type="ExtensionManager" required>
+  Extension installation and lifecycle manager (readonly)
+  
+  Loads extensions from disk, tracks enabled/disabled state.
+</ResponseField>
+
+<ResponseField name="newTabUrl" type="string" required>
+  URL to load when creating new tabs
+  
+  Default: `flow://new-tab`
+  
+  Can be overridden by extensions that provide custom new tab pages.
+</ResponseField>
+
+<ResponseField name="unload" type="() => void" required>
+  Function to unload the profile
+  
+  Destroys all tabs in the profile and removes it from loaded profiles.
+</ResponseField>
+
+## Loading Profiles
+
+```typescript
+import { loadedProfilesController } from '@/controllers/loaded-profiles-controller';
+
+// Load a profile
+const success = await loadedProfilesController.load('default');
+
+if (success) {
+  const profile = loadedProfilesController.get('default');
+  console.log('Profile loaded:', profile.profileId);
+}
+```
+
+## Accessing Loaded Profiles
+
+```typescript
+import { loadedProfilesController } from '@/controllers/loaded-profiles-controller';
+
+// Get a specific profile
+const profile = loadedProfilesController.get('profile-id');
+
+if (profile) {
+  console.log('New tab URL:', profile.newTabUrl);
+  console.log('Session:', profile.session);
+}
+
+// Get all loaded profiles
+const profiles = loadedProfilesController.getAll();
+console.log(`${profiles.length} profiles loaded`);
+```
+
+## Session Management
+
+The profile's Electron session is isolated and persistent:
+
+```typescript
+const profile = loadedProfilesController.get('default');
+if (profile) {
+  // Access session
+  const { session } = profile;
+  
+  // Get cookies
+  const cookies = await session.cookies.get({});
+  
+  // Clear cache
+  await session.clearCache();
+  
+  // Modify web requests
+  session.webRequest.onBeforeRequest((details, callback) => {
+    // Intercept requests
+    callback({ cancel: false });
+  });
+}
+```
+
+## Extension Management
+
+```typescript
+const profile = loadedProfilesController.get('default');
+if (profile) {
+  // Access extension manager
+  const { extensionsManager } = profile;
+  
+  // Check if extension is disabled
+  const isDisabled = extensionsManager.getExtensionDisabled('extension-id');
+  
+  // Enable/disable extension
+  await extensionsManager.setExtensionDisabled('extension-id', false);
+  
+  // Add installed extension
+  await extensionsManager.addInstalledExtension('crx', 'extension-id');
+}
+```
+
+## Extension Events
+
+Extensions can modify the profile's behavior:
+
+```typescript
+const profile = loadedProfilesController.get('default');
+if (profile) {
+  profile.extensions.on('url-overrides-updated', (urlOverrides) => {
+    if (urlOverrides.newtab) {
+      // Extension overrode new tab URL
+      console.log('New tab URL:', urlOverrides.newtab);
+    }
+  });
+}
+```
+
+## Tab Creation with Profiles
+
+```typescript
+import { tabsController } from '@/controllers/tabs-controller';
+import { loadedProfilesController } from '@/controllers/loaded-profiles-controller';
+
+// Load profile
+await loadedProfilesController.load('work-profile');
+
+// Create tab with this profile
+const tab = await tabsController.createTab(
+  windowId,
+  'work-profile',
+  'work-space',
+  undefined,
+  { url: 'https://example.com' }
+);
+```
+
+## Unloading Profiles
+
+```typescript
+import { loadedProfilesController } from '@/controllers/loaded-profiles-controller';
+
+// Unload via controller
+loadedProfilesController.unload('profile-id');
+
+// Or via profile instance
+const profile = loadedProfilesController.get('profile-id');
+if (profile) {
+  profile.unload();
+}
+```
+
+<Warning>
+  Unloading a profile destroys all its tabs. Ensure no critical tabs are open before unloading.
+</Warning>
+
+## User Agent Transformation
+
+Loaded profiles have their user agent transformed to closer emulate Chrome:
+
+```typescript
+// Original Electron UA:
+// Mozilla/5.0 ... Electron/33.0.0 ...
+
+// Transformed UA (Electron/App details removed):
+// Mozilla/5.0 ... Chrome/...
+```
+
+This provides better compatibility with websites that detect or block Electron.
+
+## Extension Installation Flow
+
+When a user installs an extension from the Chrome Web Store:
+
+1. **Before Install**: Dialog asks for confirmation and shows permissions
+2. **Installation**: Extension is downloaded and loaded
+3. **After Install**: Extension is registered with extensionsManager
+4. **Enable/Disable**: User can toggle extensions via extensionsManager
+
+```typescript
+// Extensions are installed to:
+// <profilePath>/Extensions/crx/<extension-id>
+
+// Extension state is managed by:
+profile.extensionsManager.setExtensionDisabled(extensionId, disabled);
+```
+
+## Profile Loading Process
+
+When loading a profile:
+
+1. Fetch profile data from database
+2. Get or create Electron session
+3. Transform user agent
+4. Initialize ElectronChromeExtensions
+5. Load extensions from disk
+6. Install Chrome Web Store integration
+7. Register tab creation callbacks
+8. Emit 'profile-loaded' event
+
+## Events
+
+The loadedProfilesController emits events:
+
+```typescript
+import { loadedProfilesController } from '@/controllers/loaded-profiles-controller';
+
+loadedProfilesController.on('profile-loaded', (profileId) => {
+  console.log(`Profile ${profileId} loaded`);
+});
+
+loadedProfilesController.on('profile-unloaded', (profileId) => {
+  console.log(`Profile ${profileId} unloaded`);
+});
+```
+
+## Example: Multi-Profile Workflow
+
+```typescript
+import { loadedProfilesController } from '@/controllers/loaded-profiles-controller';
+import { browserWindowsController } from '@/controllers/windows-controller/interfaces/browser';
+import { tabsController } from '@/controllers/tabs-controller';
+
+// Load multiple profiles
+await Promise.all([
+  loadedProfilesController.load('personal'),
+  loadedProfilesController.load('work')
+]);
+
+// Create windows for each profile
+const personalWindow = await browserWindowsController.create('normal');
+const workWindow = await browserWindowsController.create('normal');
+
+// Create tabs in different profiles
+const personalTab = await tabsController.createTab(
+  personalWindow.id,
+  'personal',
+  'personal-space',
+  undefined,
+  { url: 'https://gmail.com' }
+);
+
+const workTab = await tabsController.createTab(
+  workWindow.id,
+  'work',
+  'work-space',
+  undefined,
+  { url: 'https://company-intranet.com' }
+);
+
+// Each tab has isolated session, cookies, extensions
+console.log('Personal session:', personalTab.loadedProfile.session);
+console.log('Work session:', workTab.loadedProfile.session);
+```
+
+## Extension API Integration
+
+The profile's extensions object provides Chrome Extension APIs:
+
+```typescript
+const profile = loadedProfilesController.get('default');
+if (profile) {
+  // Extensions can:
+  // - Create tabs
+  // - Select tabs
+  // - Remove tabs
+  // - Create windows
+  // - Remove windows
+  // - Override new tab page
+  // - Show browser action popups
+  
+  profile.extensions.on('browser-action-popup-created', (popup) => {
+    console.log('Extension popup opened:', popup.extensionId);
+  });
+}
+```
+
+## Manifest V2 Support
+
+Flow Browser supports both Manifest V2 and V3 extensions:
+
+```typescript
+// Check user setting
+import { getSettingValueById } from '@/saving/settings';
+
+const enableMv2 = getSettingValueById('enableMv2Extensions');
+const minimumManifestVersion = enableMv2 ? 2 : undefined;
+
+// Chrome Web Store respects this setting
+// MV2 extensions are allowed if setting is enabled
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Browser" icon="globe" href="/api/browser">
+    Learn about browser controllers
+  </Card>
+  <Card title="Tab" icon="browser" href="/api/tab">
+    Learn about the Tab class
+  </Card>
+</CardGroup>

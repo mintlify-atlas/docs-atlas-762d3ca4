@@ -1,0 +1,176 @@
+---
+title: Profiles
+description: Organize your browsing with isolated profiles for work, personal, and other contexts
+icon: user-circle
+---
+
+Profiles in Flow Browser provide complete browsing isolation, allowing you to separate different contexts like work, personal browsing, or testing environments. Each profile maintains its own history, cookies, extensions, and settings.
+
+## What are Profiles?
+
+A profile is an isolated browsing environment with its own:
+
+<CardGroup cols={2}>
+  <Card title="Browsing Data" icon="database">
+    Separate history, cookies, cache, and local storage
+  </Card>
+  <Card title="Extensions" icon="puzzle-piece">
+    Independent extension installations and configurations
+  </Card>
+  <Card title="Settings" icon="gear">
+    Profile-specific preferences and customizations
+  </Card>
+  <Card title="Spaces" icon="folder">
+    Each profile can have multiple Spaces for organizing tabs
+  </Card>
+</CardGroup>
+
+## Creating Profiles
+
+Flow Browser automatically creates a "Main" profile on first launch. You can create additional profiles through the Settings interface.
+
+<Steps>
+  <Step title="Open Settings">
+    Press `Cmd/Ctrl + ,` or use the application menu to open Settings
+  </Step>
+  
+  <Step title="Navigate to Profiles">
+    Click on the Profiles section in the sidebar
+  </Step>
+  
+  <Step title="Create New Profile">
+    Click the "Create Profile" button and enter a name
+  </Step>
+  
+  <Step title="Start Browsing">
+    Your new profile is created with a default Space and ready to use
+  </Step>
+</Steps>
+
+## Profile Architecture
+
+Profiles are managed by the `ProfilesController` located at `src/main/controllers/profiles-controller/index.ts:23`.
+
+### Profile Data Structure
+
+Each profile stores:
+
+```typescript
+interface ProfileData {
+  name: string;        // Display name of the profile
+  createdAt: number;   // Timestamp when created
+}
+```
+
+### File System Storage
+
+Profiles are stored in the `Profiles/` directory within Flow's data directory. Each profile gets:
+
+- A unique directory containing Chromium profile data
+- Isolated cache, cookies, and local storage
+- Separate extension installations
+- Individual browsing history
+
+<Note>
+  The profile directory name serves as the profile ID. The default profile uses the ID `"main"`.
+</Note>
+
+## Managing Profiles
+
+### Profile Operations
+
+<AccordionGroup>
+  <Accordion title="Update Profile Name">
+    Profile names can be updated at any time through the Settings interface. The profile data is managed through a cached controller that emits events when profiles are updated.
+
+    ```typescript
+    // src/main/controllers/profiles-controller/index.ts:112
+    public async update(profileId: string, profileData: Partial<ProfileData>)
+    ```
+  </Accordion>
+
+  <Accordion title="Delete Profile">
+    Deleting a profile removes all associated data including:
+    - All Spaces within the profile
+    - Chromium profile data (history, cookies, cache)
+    - Installed extensions
+    - Profile settings
+
+    <Warning>
+      Profile deletion is permanent and cannot be undone. All browsing data will be lost.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="Switch Between Profiles">
+    While profiles themselves don't have a direct "switch" mechanism in the UI, Spaces belong to profiles. You switch contexts by selecting a Space from a different profile.
+  </Accordion>
+</AccordionGroup>
+
+## Profile Events
+
+The profile system emits events that other parts of the application can listen to:
+
+| Event | Description |
+|-------|-------------|
+| `profile-created` | Fired when a new profile is created |
+| `profile-updated` | Fired when profile data changes |
+| `profile-deleted` | Fired when a profile is removed |
+| `requested-all-profiles` | Fired when all profiles have been loaded into cache |
+
+## Default Profile
+
+The `"main"` profile is created automatically during first launch at `src/main/controllers/profiles-controller/index.ts:183`:
+
+```typescript
+queueMicrotask(() => profilesController._setupInitialProfile());
+```
+
+This ensures users always have at least one profile to work with.
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Work vs Personal" icon="briefcase">
+    Keep work browsing completely separate from personal accounts and history
+  </Card>
+  
+  <Card title="Testing" icon="flask">
+    Create a clean profile for testing websites or extensions
+  </Card>
+  
+  <Card title="Multiple Accounts" icon="users">
+    Manage different accounts for the same service simultaneously
+  </Card>
+  
+  <Card title="Privacy" icon="shield">
+    Create temporary profiles for sensitive browsing that can be deleted
+  </Card>
+</CardGroup>
+
+## Technical Details
+
+### Caching Strategy
+
+The ProfilesController implements an intelligent caching system at `src/main/controllers/profiles-controller/index.ts:24-77`:
+
+- Profile data is cached in memory after first access
+- Cache is invalidated when profiles are deleted
+- Cache is reconciled (merged) when profiles are updated
+- Lazy loading: profiles are only read from disk when requested
+
+### Validation
+
+Profile IDs are validated to prevent directory traversal attacks:
+
+```typescript
+// Only alphanumeric, underscore, and hyphen allowed
+if (!/^[a-zA-Z0-9_-]+$/.test(profileId)) {
+  return { success: false };
+}
+```
+
+## Related Features
+
+- [Spaces](/features/spaces) - Organize tabs within a profile
+- [Extensions](/features/extensions) - Extensions are installed per-profile
+- [Privacy](/features/privacy) - Each profile has isolated privacy settings

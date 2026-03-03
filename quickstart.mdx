@@ -1,80 +1,472 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Get up and running with Flow Browser in minutes
 ---
 
-## Get started in three steps
+## Welcome to Flow Browser
 
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+This guide will walk you through your first experience with Flow Browser, from the onboarding process to mastering the core features.
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  If you haven't installed Flow Browser yet, head over to the [Installation Guide](/installation) first.
+</Note>
+
+## First Launch: Onboarding
+
+When you launch Flow Browser for the first time, you'll be greeted with a simple onboarding wizard:
+
+<Steps>
+  <Step title="Welcome Screen">
+    Flow Browser will introduce you to its core concepts:
+    - **Profiles**: Separate browsing identities with different settings
+    - **Spaces**: Organize tabs within a profile for different tasks
+    - **Sidebar**: Quick access to navigation and controls
+  </Step>
+  
+  <Step title="Create Your First Profile">
+    You'll be prompted to create your first profile. Think of profiles as completely separate browsing environments:
+    
+    - Work profile (with work-related extensions)
+    - Personal profile (for casual browsing)
+    - Development profile (with developer tools)
+    
+    <Note>
+      Each profile has its own history, cookies, extensions, and settings.
+    </Note>
+  </Step>
+  
+  <Step title="Complete Setup">
+    Once you complete the onboarding, Flow Browser will create your first Space and you're ready to browse!
+  </Step>
+</Steps>
+
+## Understanding the Interface
+
+Flow Browser features a minimalist, sidebar-based interface:
+
+```
+┌─────────────┬──────────────────────────────────────┐
+│   Sidebar   │       Main Browser Window            │
+│             │                                      │
+│  Spaces     │  ┌────────────────────────────────┐  │
+│  • Work     │  │  Address Bar (Omnibox)         │  │
+│  • Personal │  └────────────────────────────────┘  │
+│             │                                      │
+│  Tabs       │      Web Content Area                │
+│  □ Tab 1    │                                      │
+│  □ Tab 2    │                                      │
+│  □ Tab 3    │                                      │
+│             │                                      │
+│  Settings   │                                      │
+└─────────────┴──────────────────────────────────────┘
+```
+
+### Key Interface Elements
+
+<CardGroup cols={2}>
+  <Card title="Sidebar" icon="sidebar">
+    The left sidebar provides access to spaces, tabs, bookmarks, history, and settings. It can be configured to auto-hide or remain visible.
+  </Card>
+  
+  <Card title="Omnibox" icon="search">
+    The address bar doubles as a search box and command palette. Type to search, navigate, or access browser commands.
+  </Card>
+  
+  <Card title="Spaces Switcher" icon="layer-group">
+    Switch between different workspaces to organize your tabs by context (e.g., Work, Research, Shopping).
+  </Card>
+  
+  <Card title="Tab List" icon="bars">
+    Vertical tab list showing all tabs in the current space. Tabs can be put to sleep to save resources.
+  </Card>
+</CardGroup>
+
+## Essential Features
+
+### Creating and Managing Tabs
+
+Flow Browser provides multiple ways to create and manage tabs:
+
+<Tabs>
+  <Tab title="Keyboard Shortcuts">
+    ```bash
+    Cmd/Ctrl + T        # New tab
+    Cmd/Ctrl + W        # Close tab
+    Cmd/Ctrl + Tab      # Next tab
+    Cmd/Ctrl + Shift+T  # Reopen closed tab
+    ```
+  </Tab>
+  
+  <Tab title="Via Sidebar">
+    - Click the **+** button in the tab list
+    - Right-click a tab for more options
+    - Drag tabs to reorder (coming soon)
+  </Tab>
+  
+  <Tab title="Via Omnibox">
+    Press the omnibox shortcut and type:
+    - `new tab` - Creates a new tab
+    - `close tab` - Closes current tab
+  </Tab>
+</Tabs>
+
+### Tab Persistence
+
+Flow Browser automatically saves your tabs and restores them when you restart:
+
+<Note>
+  The tab persistence system runs in the background, writing changes to disk every ~2 seconds. You'll never lose your open tabs, even if the browser crashes.
+</Note>
+
+Implementation detail from the source:
+
+```typescript
+// From src/main/browser.ts
+import { tabPersistenceManager } from "@/saving/tabs";
+
+// Start tab persistence flush interval
+tabPersistenceManager.start();
+```
+
+### Sleep Tabs
+
+Save system resources by putting inactive tabs to sleep:
+
+1. Right-click an inactive tab
+2. Select "Sleep Tab"
+3. The tab's memory is freed while preserving its state
+4. Click the tab to wake it up instantly
+
+<Warning>
+  Sleeping tabs will need to reload when you access them again. Any unsaved form data may be lost.
+</Warning>
+
+### Using Spaces
+
+Spaces help you organize tabs by context:
+
+<Steps>
+  <Step title="Create a Space">
+    Click the **+** icon in the Spaces section of the sidebar, or use the command palette.
+  </Step>
+  
+  <Step title="Name Your Space">
+    Give it a meaningful name like "Work", "Research", or "Shopping".
+  </Step>
+  
+  <Step title="Switch Between Spaces">
+    Click on a space name to switch to it. All tabs in that space will be restored.
+  </Step>
+  
+  <Step title="Organize Your Workflow">
+    Each space maintains its own tab collection, so you can keep different projects completely separate.
+  </Step>
+</Steps>
+
+**Example Workflow:**
+
+```
+Profile: Work
+  ├─ Space: Project A
+  │  ├─ Documentation tabs
+  │  ├─ GitHub issues
+  │  └─ Local development
+  ├─ Space: Project B
+  │  └─ Related tabs
+  └─ Space: Email & Calendar
+     └─ Productivity tabs
+```
+
+## Installing Extensions
+
+Flow Browser supports Chrome extensions directly from the Chrome Web Store:
+
+<Steps>
+  <Step title="Navigate to Chrome Web Store">
+    Open [chrome.google.com/webstore](https://chrome.google.com/webstore) in Flow Browser.
+  </Step>
+  
+  <Step title="Browse and Install">
+    Find the extension you want and click "Add to Chrome" (yes, it works in Flow!).
+  </Step>
+  
+  <Step title="Manage Extensions">
+    Access installed extensions via:
+    - Settings > Extensions
+    - Or navigate to `flow://extensions`
+  </Step>
+</Steps>
+
+<Note>
+  Extensions are installed per-profile. If you have multiple profiles, you'll need to install extensions separately for each one.
+</Note>
+
+Flow's extension support is powered by:
+
+```json
+{
+  "electron-chrome-extensions": "@iamevan/electron-chrome-extensions@4.7.5",
+  "electron-chrome-web-store": "@iamevan/electron-chrome-web-store@0.11.2"
+}
+```
+
+## Using the Command Palette
+
+The command palette (omnibox) is your gateway to everything in Flow Browser:
+
+<Tabs>
+  <Tab title="Search the Web">
+    Just start typing:
+    ```
+    how to use flow browser
+    ```
+    Press Enter to search with your default search engine.
+  </Tab>
+  
+  <Tab title="Navigate to URLs">
+    Type a URL:
+    ```
+    github.com/multiboxlabs/flow-browser
+    ```
+    Flow will recognize it and navigate directly.
+  </Tab>
+  
+  <Tab title="Access Bookmarks">
+    Your bookmarks appear in the suggestions as you type.
+  </Tab>
+  
+  <Tab title="View History">
+    Previously visited pages are suggested based on your input.
+  </Tab>
+  
+  <Tab title="Execute Commands">
+    Type commands like:
+    - `settings` - Open settings
+    - `extensions` - Manage extensions
+    - `new tab` - Create new tab
+  </Tab>
+</Tabs>
+
+## Built-in Ad Blocking
+
+Flow Browser includes a native ad blocker powered by Ghostery:
+
+```typescript
+// From package.json dependencies
+"@ghostery/adblocker-electron": "^2.14.1"
+```
+
+**Features:**
+- Blocks ads and trackers automatically
+- No configuration needed
+- Faster page loads and reduced bandwidth usage
+- Privacy protection out of the box
+
+To manage ad blocking:
+
+1. Go to Settings > Privacy
+2. Toggle ad blocking on/off
+3. Customize blocking rules (advanced)
+
+## Multiple Profiles
+
+Profiles provide complete isolation between browsing sessions:
+
+<CodeGroup>
+
+```typescript Creating a Profile (Conceptual)
+// From src/main/controllers/profiles-controller/index.ts
+import { profilesController } from "@/controllers/profiles-controller";
+
+// Create a new profile
+const success = await profilesController.create(
+  "My Work Profile",  // Profile name
+  true                 // Create default space
+);
+```
+
+```typescript Profile Storage Structure
+// Each profile has isolated storage:
+{
+  "profileId": "unique-id",
+  "profileName": "Work",
+  "storage": {
+    "cookies": "isolated",
+    "localStorage": "isolated",
+    "cache": "isolated",
+    "extensions": "isolated",
+    "settings": "isolated"
+  }
+}
+```
+
+</CodeGroup>
+
+### When to Use Profiles
+
+<CardGroup cols={2}>
+  <Card title="Work vs Personal" icon="briefcase">
+    Keep work browsing completely separate from personal browsing with different extensions and settings.
+  </Card>
+  
+  <Card title="Multiple Accounts" icon="users">
+    Manage multiple accounts for the same service without logging in and out.
+  </Card>
+  
+  <Card title="Development" icon="code">
+    Create a profile specifically for web development with developer extensions.
+  </Card>
+  
+  <Card title="Testing" icon="flask">
+    Test websites with different configurations or extension setups.
+  </Card>
+</CardGroup>
+
+## Special URLs
+
+Flow Browser provides special internal URLs for accessing features:
+
+| URL | Description |
+|-----|-------------|
+| `flow://settings` | Browser settings |
+| `flow://extensions` | Manage extensions |
+| `flow://games` | Offline games |
+| `flow://about` | About Flow Browser |
+
+## Keyboard Shortcuts
+
+Master these shortcuts to boost your productivity:
+
+<AccordionGroup>
+  <Accordion title="Tab Management">
+    | Shortcut | Action |
+    |----------|--------|
+    | `Cmd/Ctrl + T` | New tab |
+    | `Cmd/Ctrl + W` | Close tab |
+    | `Cmd/Ctrl + Shift + T` | Reopen closed tab |
+    | `Cmd/Ctrl + Tab` | Next tab |
+    | `Cmd/Ctrl + Shift + Tab` | Previous tab |
+  </Accordion>
+  
+  <Accordion title="Navigation">
+    | Shortcut | Action |
+    |----------|--------|
+    | `Cmd/Ctrl + L` | Focus address bar |
+    | `Cmd/Ctrl + R` | Reload page |
+    | `Cmd/Ctrl + Shift + R` | Hard reload |
+    | `Cmd/Ctrl + [` | Back |
+    | `Cmd/Ctrl + ]` | Forward |
+  </Accordion>
+  
+  <Accordion title="Window Management">
+    | Shortcut | Action |
+    |----------|--------|
+    | `Cmd/Ctrl + N` | New window |
+    | `Cmd/Ctrl + Shift + N` | New profile window |
+    | `Cmd/Ctrl + Q` | Quit Flow Browser |
+  </Accordion>
+  
+  <Accordion title="Utilities">
+    | Shortcut | Action |
+    |----------|--------|
+    | `Cmd/Ctrl + ,` | Open settings |
+    | `Cmd/Ctrl + Shift + I` | Open DevTools |
+    | `Cmd/Ctrl + Shift + Delete` | Clear browsing data |
+  </Accordion>
+</AccordionGroup>
+
+## Viewing PDFs
+
+Flow Browser includes a built-in PDF viewer powered by [@pdfslick/react](https://www.npmjs.com/package/@pdfslick/react):
+
+- Click any PDF link to view it in-browser
+- No additional plugins required
+- Smooth scrolling and zooming
+- Text selection and search
+
+## Privacy Settings
+
+Configure your privacy preferences:
+
+<Steps>
+  <Step title="Open Settings">
+    Click Settings in the sidebar or press `Cmd/Ctrl + ,`
+  </Step>
+  
+  <Step title="Navigate to Privacy">
+    Find the Privacy section in settings
+  </Step>
+  
+  <Step title="Configure Options">
+    - Enable/disable ad blocking
+    - Manage cookies and site data
+    - Configure Do Not Track
+    - Clear browsing data
+  </Step>
+</Steps>
+
+## Troubleshooting Common Issues
+
+<AccordionGroup>
+  <Accordion title="Browser won't start after update">
+    Try clearing the cache:
+    
+    **macOS/Linux:**
+    ```bash
+    rm -rf ~/Library/Application\ Support/Flow/Cache
+    ```
+    
+    **Windows:**
+    ```bash
+    del /s /q %APPDATA%\Flow\Cache
+    ```
+  </Accordion>
+  
+  <Accordion title="Extensions not working">
+    1. Check if the extension is installed for your current profile
+    2. Navigate to `flow://extensions` to verify
+    3. Try reinstalling the extension
+    4. Check the developer console for errors (`Cmd/Ctrl + Shift + I`)
+  </Accordion>
+  
+  <Accordion title="High memory usage">
+    Use the Sleep Tabs feature:
+    
+    1. Right-click inactive tabs
+    2. Select "Sleep Tab"
+    3. Consider using fewer extensions
+    4. Close unused spaces
+  </Accordion>
+  
+  <Accordion title="Tabs not persisting between restarts">
+    The tab persistence system should work automatically. If it's not working:
+    
+    1. Check file system permissions
+    2. Ensure sufficient disk space
+    3. Check the console for errors in development mode
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+Now that you're familiar with the basics, explore more:
+
+<CardGroup cols={3}>
+  <Card title="Explore Features" icon="star" href="/features/profiles">
+    Dive deep into all Flow Browser features
+  </Card>
+  
+  <Card title="Customize Settings" icon="sliders" href="/guides/settings">
+    Personalize your browsing experience
+  </Card>
+  
+  <Card title="Contribute" icon="code" href="/development/contributing">
+    Help improve Flow Browser
+  </Card>
+</CardGroup>
+
+---
+
+<Note>
+  **Need help?** Visit our [feedback portal](https://flowbrowser.userjot.com/) or check out the [GitHub repository](https://github.com/MultiboxLabs/flow-browser) for support.
 </Note>

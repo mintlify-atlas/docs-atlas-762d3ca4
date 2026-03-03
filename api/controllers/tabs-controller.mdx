@@ -1,0 +1,433 @@
+---
+title: 'TabsController'
+description: 'Manages all tabs, tab groups, and tab lifecycle in Flow Browser'
+---
+
+## Overview
+
+The `TabsController` is the central manager for all tab-related operations in Flow Browser. It handles tab creation, lifecycle management, activation, grouping, and persistence across windows and spaces.
+
+<Info>
+  **Import**: `import { tabsController } from '@/controllers/tabs-controller'`
+  
+  The controller is a singleton instance exported as `tabsController`.
+</Info>
+
+## Key Concepts
+
+### Tab Identity
+
+Each tab has multiple identifiers:
+- **`id`**: Stable numeric ID that persists across sleep/wake cycles
+- **`uniqueId`**: Globally unique string identifier for persistence
+- **`profileId`**: The profile this tab belongs to
+- **`spaceId`**: The space this tab is currently in
+
+### Tab States
+
+<CardGroup cols={2}>
+  <Card title="Visible" icon="eye">
+    Tab is currently displayed in the window
+  </Card>
+  <Card title="Asleep" icon="moon">
+    Tab's WebContents destroyed to save memory (~20-50MB per tab)
+  </Card>
+  <Card title="Fullscreen" icon="expand">
+    Tab is in fullscreen mode
+  </Card>
+  <Card title="Picture-in-Picture" icon="window-restore">
+    Tab is floating as a PiP window
+  </Card>
+</CardGroup>
+
+### Tab Managers
+
+Each tab has three associated managers:
+- **TabLifecycleManager**: Handles sleep/wake, fullscreen, and PiP
+- **TabLayoutManager**: Manages visibility, bounds, and positioning
+- **TabBoundsController**: Calculates and applies tab bounds
+
+## Core Methods
+
+### Tab Creation
+
+#### createTab()
+
+Creates a new tab with automatic profile and space resolution.
+
+```typescript
+public async createTab(
+  windowId?: number,
+  profileId?: string,
+  spaceId?: string,
+  webContentsViewOptions?: Electron.WebContentsViewConstructorOptions,
+  tabCreationOptions?: Partial<TabCreationOptions>
+): Promise<Tab>
+```
+
+<ParamField path="windowId" type="number" optional>
+  Window to create the tab in. Defaults to focused window.
+</ParamField>
+
+<ParamField path="profileId" type="string" optional>
+  Profile ID for the tab. Defaults to last used profile.
+</ParamField>
+
+<ParamField path="spaceId" type="string" optional>
+  Space ID for the tab. Defaults to last used space in profile.
+</ParamField>
+
+<ParamField path="webContentsViewOptions" type="WebContentsViewConstructorOptions" optional>
+  Electron WebContentsView options for customization.
+</ParamField>
+
+<ParamField path="tabCreationOptions" type="TabCreationOptions" optional>
+  Additional options:
+  - `url`: Initial URL to load
+  - `asleep`: Create tab in sleep mode
+  - `position`: Tab position in stack
+  - `title`, `faviconURL`: Restored state
+  - `navHistory`, `navHistoryIndex`: Navigation history
+</ParamField>
+
+<ResponseField name="return" type="Promise<Tab>">
+  The newly created Tab instance
+</ResponseField>
+
+**Example**:
+
+```typescript
+// Create a new tab with URL
+const tab = await tabsController.createTab(
+  undefined, // use focused window
+  undefined, // use last profile
+  undefined, // use last space
+  undefined,
+  { url: 'https://example.com' }
+);
+
+// Create a sleeping tab (for session restore)
+const sleepingTab = await tabsController.createTab(
+  windowId,
+  profileId,
+  spaceId,
+  undefined,
+  {
+    asleep: true,
+    title: 'Example Page',
+    navHistory: savedHistory,
+    navHistoryIndex: 2
+  }
+);
+```
+
+### Tab Queries
+
+#### getTabById()
+
+Retrieve a tab by its numeric ID.
+
+```typescript
+public getTabById(tabId: number): Tab | undefined
+```
+
+#### getTabByWebContents()
+
+Find the tab associated with a WebContents instance.
+
+```typescript
+public getTabByWebContents(webContents: WebContents): Tab | undefined
+```
+
+#### getTabsInSpace()
+
+Get all tabs in a specific space across all windows.
+
+```typescript
+public getTabsInSpace(spaceId: string): Tab[]
+```
+
+#### getTabsInWindow()
+
+Get all tabs in a specific window across all spaces.
+
+```typescript
+public getTabsInWindow(windowId: number): Tab[]
+```
+
+#### getTabsInWindowSpace()
+
+Get tabs in a specific window and space combination.
+
+```typescript
+public getTabsInWindowSpace(windowId: number, spaceId: string): Tab[]
+```
+
+### Active Tab Management
+
+#### setActiveTab()
+
+Set the active tab or tab group for a space.
+
+```typescript
+public setActiveTab(tabOrGroup: Tab | TabGroup): void
+```
+
+This method:
+- Updates the active tab map
+- Maintains activation history
+- Shows/hides tabs as needed
+- Updates focus
+- Emits `active-tab-changed` event
+
+**Example**:
+
+```typescript
+const tab = tabsController.getTabById(123);
+if (tab) {
+  tabsController.setActiveTab(tab);
+}
+```
+
+#### getActiveTab()
+
+Get the currently active tab or group for a window/space.
+
+```typescript
+public getActiveTab(windowId: number, spaceId: string): Tab | TabGroup | undefined
+```
+
+#### isTabActive()
+
+Check if a tab is currently active in its space.
+
+```typescript
+public isTabActive(tab: Tab): boolean
+```
+
+### Tab Groups
+
+#### createTabGroup()
+
+Create a new tab group (Glance or Split view).
+
+```typescript
+public createTabGroup(
+  mode: TabGroupMode,
+  initialTabIds: [number, ...number[]],
+  preferredGroupId?: string
+): TabGroup
+```
+
+<ParamField path="mode" type="'glance' | 'split'" required>
+  - **glance**: Stack tabs with quick switching
+  - **split**: Display tabs side-by-side
+</ParamField>
+
+<ParamField path="initialTabIds" type="number[]" required>
+  Array of at least 2 tab IDs to group together
+</ParamField>
+
+<ParamField path="preferredGroupId" type="string" optional>
+  Custom group ID (for session restore)
+</ParamField>
+
+**Example**:
+
+```typescript
+// Create a split view with two tabs
+const tab1 = await tabsController.createTab();
+const tab2 = await tabsController.createTab();
+
+const splitGroup = tabsController.createTabGroup(
+  'split',
+  [tab1.id, tab2.id]
+);
+
+tabsController.setActiveTab(splitGroup);
+```
+
+#### getTabGroupById()
+
+Retrieve a tab group by its string ID.
+
+```typescript
+public getTabGroupById(groupId: string): TabGroup | undefined
+```
+
+#### getTabGroupByTabId()
+
+Get the group containing a specific tab.
+
+```typescript
+public getTabGroupByTabId(tabId: number): TabGroup | undefined
+```
+
+#### destroyTabGroup()
+
+Destroy a tab group and ungroup its tabs.
+
+```typescript
+public destroyTabGroup(groupId: string): void
+```
+
+### Manager Access
+
+#### getTabManagers()
+
+Get all managers for a tab.
+
+```typescript
+public getTabManagers(tabId: number): TabManagers | undefined
+```
+
+Returns an object with:
+- `lifecycle`: TabLifecycleManager
+- `layout`: TabLayoutManager
+- `bounds`: TabBoundsController
+
+**Example**:
+
+```typescript
+const managers = tabsController.getTabManagers(tabId);
+if (managers) {
+  // Put tab to sleep
+  managers.lifecycle.putToSleep();
+  
+  // Wake tab up
+  await managers.lifecycle.wakeUp();
+  
+  // Update layout
+  managers.layout.updateLayout();
+}
+```
+
+#### getLifecycleManager()
+
+Get just the lifecycle manager for a tab.
+
+```typescript
+public getLifecycleManager(tabId: number): TabLifecycleManager | undefined
+```
+
+#### getLayoutManager()
+
+Get just the layout manager for a tab.
+
+```typescript
+public getLayoutManager(tabId: number): TabLayoutManager | undefined
+```
+
+## Events
+
+The TabsController extends `TypedEventEmitter` with these events:
+
+<ResponseField name="tab-created" type="[Tab]">
+  Emitted when a new tab is created
+</ResponseField>
+
+<ResponseField name="tab-removed" type="[Tab]">
+  Emitted when a tab is removed from the controller
+</ResponseField>
+
+<ResponseField name="active-tab-changed" type="[windowId: number, spaceId: string]">
+  Emitted when the active tab changes in a window/space
+</ResponseField>
+
+<ResponseField name="current-space-changed" type="[windowId: number, spaceId: string]">
+  Emitted when a window switches to a different space
+</ResponseField>
+
+**Example**:
+
+```typescript
+tabsController.on('tab-created', (tab) => {
+  console.log(`New tab created: ${tab.id} - ${tab.url}`);
+});
+
+tabsController.on('active-tab-changed', (windowId, spaceId) => {
+  const activeTab = tabsController.getActiveTab(windowId, spaceId);
+  console.log('Active tab changed:', activeTab);
+});
+```
+
+## Advanced Usage
+
+### Picture-in-Picture
+
+```typescript
+// Disable PiP and return to tab
+tabsController.disablePictureInPicture(tabId, true);
+```
+
+### Space Management
+
+```typescript
+// Set current space for a window
+tabsController.setCurrentWindowSpace(windowId, spaceId);
+
+// Get the current space for a window
+const currentSpaceId = tabsController.windowActiveSpaceMap.get(windowId);
+```
+
+### Position Normalization
+
+Prevents tab position drift by resetting positions to sequential values.
+
+```typescript
+// Normalize tab positions in a space
+tabsController.normalizePositions(windowId, spaceId);
+```
+
+### Page Bounds Updates
+
+```typescript
+// Update all tab layouts when window bounds change
+tabsController.handlePageBoundsChanged(windowId);
+```
+
+## Data Structures
+
+### TabManagers
+
+```typescript
+interface TabManagers {
+  lifecycle: TabLifecycleManager;
+  layout: TabLayoutManager;
+  bounds: TabBoundsController;
+}
+```
+
+### TabCreationOptions
+
+```typescript
+interface TabCreationOptions {
+  uniqueId?: string;
+  window: BrowserWindow;
+  webContentsViewOptions?: Electron.WebContentsViewConstructorOptions;
+  url?: string;
+  asleep?: boolean;
+  position?: number;
+  title?: string;
+  faviconURL?: string;
+  navHistory?: NavigationEntry[];
+  navHistoryIndex?: number;
+}
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Tab Class" icon="window" href="/api/tab">
+    Individual tab implementation
+  </Card>
+  <Card title="Windows Controller" icon="browser" href="/api/controllers/windows-controller">
+    Window management
+  </Card>
+  <Card title="Spaces Controller" icon="layer-group" href="/api/controllers/spaces-controller">
+    Space management
+  </Card>
+  <Card title="Profiles Controller" icon="user" href="/api/controllers/profiles-controller">
+    Profile management
+  </Card>
+</CardGroup>

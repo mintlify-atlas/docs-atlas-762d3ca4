@@ -1,0 +1,417 @@
+---
+title: 'Browser Sidebar'
+description: 'Vertical navigation panel with tabs, address bar, and browser controls'
+---
+
+## Overview
+
+The Browser Sidebar is Flow Browser's primary navigation interface, providing tab management, address bar, navigation controls, and space switching in a vertical panel. It supports both attached and floating modes with smooth animations.
+
+## Modes
+
+The sidebar operates in three distinct modes:
+
+<CardGroup cols={3}>
+  <Card title="Attached" icon="sidebar">
+    Docked to the left or right edge, consuming layout space
+  </Card>
+  <Card title="Floating" icon="window">
+    Overlays content in a portal window, triggered by edge hover
+  </Card>
+  <Card title="Hidden" icon="eye-slash">
+    Completely hidden from view
+  </Card>
+</CardGroup>
+
+## Architecture
+
+### Provider System
+
+The sidebar uses a context-based state management system:
+
+**Location**: `src/renderer/src/components/browser-ui/browser-sidebar/provider.tsx`
+
+```tsx
+import { BrowserSidebarProvider, useBrowserSidebar } from "@/components/browser-ui/browser-sidebar/provider";
+
+<BrowserSidebarProvider hasSidebar={true}>
+  {/* Your app */}
+</BrowserSidebarProvider>
+```
+
+**Context Values**:
+
+```typescript
+interface BrowserSidebarContextValue {
+  isVisible: boolean;
+  setVisible: (isVisible: boolean) => void;
+  attachedDirection: "left" | "right";
+  isAnimating: boolean;
+  startAnimation: () => string;
+  stopAnimation: (animationId: string) => void;
+  mode: BrowserSidebarMode;
+  recordedSidebarSizeRef: React.RefObject<number>;
+  setForceFloating: (forceFloating: boolean) => void;
+  onSidebarResize: (callback: (width: number) => void) => () => void;
+  notifySidebarResize: (width: number) => void;
+}
+```
+
+**Sidebar Modes**:
+```typescript
+type BrowserSidebarMode = 
+  | "attached-left" 
+  | "attached-right" 
+  | "floating-left" 
+  | "floating-right" 
+  | "hidden";
+```
+
+### Component Structure
+
+**Location**: `src/renderer/src/components/browser-ui/browser-sidebar/component.tsx`
+
+```tsx
+import { BrowserSidebar } from "@/components/browser-ui/browser-sidebar/component";
+
+<BrowserSidebar
+  direction="left"
+  variant="attached"
+  order={1}
+  skipEntryAnimation={false}
+/>
+```
+
+**Props**:
+
+<ParamField path="direction" type="'left' | 'right'" required>
+  Which side of the window the sidebar appears on
+</ParamField>
+
+<ParamField path="variant" type="'attached' | 'floating'" required>
+  Rendering mode - attached consumes layout space, floating is an overlay
+</ParamField>
+
+<ParamField path="order" type="number" required>
+  ResizablePanel order for layout positioning
+</ParamField>
+
+<ParamField path="skipEntryAnimation" type="boolean" default="false">
+  Skip slide-in animation (used for attached ↔ floating transitions)
+</ParamField>
+
+## Sidebar Components
+
+### SidebarInner
+
+The actual content of the sidebar, rendered identically in both attached and floating modes.
+
+**Location**: `src/renderer/src/components/browser-ui/browser-sidebar/inner.tsx`
+
+```tsx
+import { SidebarInner } from "@/components/browser-ui/browser-sidebar/inner";
+
+<SidebarInner direction="left" variant="attached" />
+```
+
+**Structure**:
+
+<Steps>
+  <Step title="Top Section">
+    - Window controls (macOS)
+    - Sidebar toggle button
+    - Navigation controls (back, forward, reload)
+  </Step>
+  <Step title="Middle Section (flex-1)">
+    - Address bar
+    - Pinned tabs grid
+    - Space pages carousel (tab groups)
+  </Step>
+  <Step title="Bottom Section">
+    - Settings button
+    - Space switcher
+    - Browser action list (extensions)
+  </Step>
+</Steps>
+
+### Address Bar
+
+**Location**: `src/renderer/src/components/browser-ui/browser-sidebar/_components/address-bar.tsx`
+
+```tsx
+import { AddressBar } from "@/components/browser-ui/browser-sidebar/_components/address-bar";
+
+<AddressBar />
+```
+
+Displays the current URL and opens the omnibox when clicked:
+
+```typescript
+const handleClick = useCallback(() => {
+  const rect = containerRef.current.getBoundingClientRect();
+  
+  flow.omnibox.show(
+    {
+      x: rect.x,
+      y: rect.y,
+      width: rect.width * 2,
+      height: rect.height * 8
+    },
+    {
+      currentInput: addressUrl,
+      openIn: focusedTabId ? "current" : "new_tab"
+    }
+  );
+}, [addressUrl, focusedTabId]);
+```
+
+### Navigation Controls
+
+**Location**: `src/renderer/src/components/browser-ui/browser-sidebar/_components/navigation-controls.tsx`
+
+Provides back, forward, and reload/stop buttons with animated icons:
+
+```tsx
+import { NavigationControls, NavButton } from "@/components/browser-ui/browser-sidebar/_components/navigation-controls";
+
+<NavigationControls />
+```
+
+**Features**:
+- Right-click history popover using `PortalPopover`
+- Animated icons (arrows rotate on press)
+- Reload ↔ Stop button transition during page load
+- Disabled states when navigation is not possible
+
+**NavButton Component**:
+```tsx
+<NavButton
+  icon={<ArrowLeftIcon className="size-4" />}
+  disabled={!canGoBack}
+  onClick={handleGoBack}
+/>
+```
+
+### Tab Groups
+
+**Location**: `src/renderer/src/components/browser-ui/browser-sidebar/_components/tab-group.tsx`
+
+Displays grouped tabs with drag-and-drop support:
+
+```tsx
+import { TabGroup } from "@/components/browser-ui/browser-sidebar/_components/tab-group";
+
+<TabGroup
+  tabGroup={tabGroup}
+  isActive={true}
+  isFocused={true}
+  isSpaceLight={true}
+  position={0}
+  groupCount={5}
+  moveTab={moveTabHandler}
+/>
+```
+
+**Drag & Drop**:
+
+Uses `@atlaskit/pragmatic-drag-and-drop` for tab reordering:
+
+```typescript
+type TabGroupSourceData = {
+  type: "tab-group";
+  tabGroupId: string;
+  primaryTabId: number;
+  profileId: string;
+  spaceId: string;
+  position: number;
+};
+```
+
+**Tab Features**:
+- Favicon display with error fallback
+- Audio indicator (muted/playing)
+- Close button on hover
+- Middle-click to close
+- Context menu on right-click
+
+## Size Management
+
+### Resizable Panel
+
+The attached sidebar uses `PixelBasedResizablePanel` for drag-to-resize:
+
+```tsx
+<PixelBasedResizablePanel
+  id="sidebar"
+  defaultSizePixels={recordedSidebarSizeRef.current}
+  minSizePixels={MIN_SIDEBAR_WIDTH}  // 150px
+  maxSizePixels={MAX_SIDEBAR_WIDTH}  // 500px
+  onResize={updateSidebarSize}
+/>
+```
+
+### Persistence
+
+Sidebar width is saved to localStorage with debouncing:
+
+```typescript
+// Constants
+export const MIN_SIDEBAR_WIDTH = 150;
+export const DEFAULT_SIDEBAR_SIZE = 200;
+export const MAX_SIDEBAR_WIDTH = 500;
+
+// Save with 50ms debounce
+export function saveSidebarSize(size: number) {
+  pendingSidebarSize = size;
+  
+  if (saveSidebarSizeTimeout !== null) {
+    clearTimeout(saveSidebarSizeTimeout);
+  }
+  
+  saveSidebarSizeTimeout = setTimeout(() => {
+    localStorage.setItem("BROWSER_SIDEBAR_SIZE", pendingSidebarSize.toString());
+  }, 50);
+}
+```
+
+## Animation System
+
+### Entry/Exit Animations
+
+The sidebar slides in/out with CSS transitions:
+
+```typescript
+const SIDEBAR_ANIMATE_TIME = 100; // milliseconds
+const SIDEBAR_ANIMATE_CLASS = "duration-100 ease-in-out";
+```
+
+**Attached Mode**:
+```tsx
+className={
+  cn(
+    "transition-[margin]",
+    SIDEBAR_ANIMATE_CLASS,
+    direction === "left" && (currentlyVisible ? "ml-0" : "-ml-[var(--panel-size)]"),
+    direction === "right" && (currentlyVisible ? "mr-0" : "-mr-[var(--panel-size)]")
+  )
+}
+```
+
+**Floating Mode**:
+```tsx
+className={
+  cn(
+    "transition-transform",
+    SIDEBAR_ANIMATE_CLASS,
+    currentlyVisible ? "translate-x-0" : 
+      direction === "left" ? "-translate-x-full" : "translate-x-full"
+  )
+}
+```
+
+### Animation Readiness
+
+To prevent "pop-in" without animation, the sidebar uses a two-frame delay:
+
+```typescript
+useLayoutEffect(() => {
+  const el = animatedRef.current;
+  if (el) {
+    void el.getBoundingClientRect(); // Force reflow
+  }
+  
+  // Double-rAF ensures off-screen layout is painted first
+  const win = el?.ownerDocument?.defaultView ?? window;
+  const outerRafId = win.requestAnimationFrame(() => {
+    const innerRafId = win.requestAnimationFrame(() => {
+      setAnimationReady(true);
+    });
+  });
+}, [skipEntryAnimation, isPresent]);
+```
+
+## Floating Sidebar
+
+When in floating mode, the sidebar renders inside a `PortalComponent`:
+
+```tsx
+<PortalComponent
+  className="fixed"
+  style={{
+    top: topbarHeight,
+    [direction === "left" ? "left" : "right"]: 0,
+    width: recordedSidebarSizeRef.current + 30,
+    height: `calc(100vh - ${topbarHeight}px)`
+  }}
+  visible={true}
+  zIndex={ViewLayer.OVERLAY}
+>
+  <div className="h-full overflow-hidden p-2">
+    {content}
+  </div>
+</PortalComponent>
+```
+
+### Floating Trigger
+
+The sidebar automatically appears when hovering near the window edge (implemented in `floating-sidebar-trigger.tsx`).
+
+## Theme Support
+
+The sidebar adapts to the current space's theme:
+
+```tsx
+const { isCurrentSpaceLight } = useSpaces();
+const spaceInjectedClasses = useMemo(
+  () => cn(isCurrentSpaceLight ? "" : "dark"),
+  [isCurrentSpaceLight]
+);
+```
+
+## Keyboard Shortcuts
+
+Toggle sidebar visibility:
+
+```typescript
+useEffect(() => {
+  const removeListener = flow.interface.onToggleSidebar(() => {
+    setVisible(!isVisibleRef.current);
+  });
+  return removeListener;
+}, []);
+```
+
+## Usage Example
+
+```tsx
+import { BrowserSidebarProvider } from "@/components/browser-ui/browser-sidebar/provider";
+import { BrowserSidebar } from "@/components/browser-ui/browser-sidebar/component";
+import { AnimatePresence } from "motion/react";
+
+function MyBrowser() {
+  return (
+    <BrowserSidebarProvider hasSidebar={true}>
+      <AnimatePresence>
+        <BrowserSidebar
+          direction="left"
+          variant="attached"
+          order={1}
+        />
+      </AnimatePresence>
+    </BrowserSidebarProvider>
+  );
+}
+```
+
+## Performance Notes
+
+- Tab groups are memoized to prevent re-renders on tab data changes
+- Sidebar resize events use callback-based subscription (not context updates)
+- `useLayoutEffect` ensures IPC messages fire before paint
+- Animation state is tracked with unique IDs to handle overlapping animations
+
+## Related Components
+
+- [Browser UI](/components/browser-ui) - Main layout system
+- [Tabs](/components/tabs) - Tab management
+- [Portal](/components/portal) - Floating window system

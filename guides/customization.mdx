@@ -1,0 +1,340 @@
+---
+title: Customization Guide
+description: Personalize Flow Browser with spaces, themes, icons, and custom settings
+icon: palette
+---
+
+## Overview
+
+Flow Browser offers extensive customization options to make your browsing experience truly yours. From visual themes to workflow organization, you can tailor every aspect of the browser to match your preferences.
+
+## Spaces
+
+Spaces are Flow Browser's most powerful organizational feature, allowing you to maintain separate browsing contexts for different projects, purposes, or moods.
+
+### Creating a New Space
+
+<Steps>
+  <Step title="Open Settings">
+    Navigate to **Settings > Spaces** or press **Cmd/Ctrl + ,** and select the Spaces section.
+  </Step>
+
+  <Step title="Create Space">
+    Click the **Create New Space** button to start the space creation wizard.
+  </Step>
+
+  <Step title="Name Your Space">
+    Enter a meaningful name for your space:
+    - Work
+    - Personal
+    - Research
+    - Shopping
+    - Gaming
+    
+    Choose a name that clearly identifies the purpose of this browsing context.
+  </Step>
+
+  <Step title="Select an Icon">
+    Choose an icon that visually represents your space. Flow Browser provides a variety of icons to match different contexts and preferences.
+  </Step>
+
+  <Step title="Choose Colors">
+    Customize your space's color scheme:
+    - Primary color for the space theme
+    - Accent colors for UI elements
+    - Choose from preset color palettes or create custom combinations
+    
+    The colors you select will be applied to the sidebar, tabs, and other UI elements when this space is active.
+  </Step>
+</Steps>
+
+### Editing an Existing Space
+
+To modify a space after creation:
+
+1. Go to **Settings > Spaces**
+2. Find the space you want to edit
+3. Click the **Edit** button on the space card
+4. Modify the name, icon, or colors
+5. Click **Save** to apply your changes
+
+### Deleting a Space
+
+<Warning>
+  Deleting a space will close all tabs within that space. This action cannot be undone.
+</Warning>
+
+To delete a space:
+
+1. Navigate to **Settings > Spaces**
+2. Locate the space you want to remove
+3. Click the **Delete** button
+4. Confirm the deletion when prompted
+
+<Info>
+  You cannot delete your only remaining space. Flow Browser requires at least one active space at all times.
+</Info>
+
+### Space Profiles
+
+Spaces are associated with profiles, which determine:
+
+- Cookie storage
+- Cache data
+- Local storage
+- Session information
+- Installed extensions
+
+Different spaces can share the same profile or use separate profiles for complete isolation.
+
+## Browser Icons
+
+Personalize Flow Browser's application icon to match your desktop aesthetic.
+
+### Changing the Browser Icon
+
+<Steps>
+  <Step title="Open Icon Settings">
+    Navigate to **Settings > Icon** to access the icon customization page.
+  </Step>
+
+  <Step title="Browse Available Icons">
+    Flow Browser includes multiple icon designs created by various artists. Each icon shows:
+    - Preview image
+    - Icon name
+    - Artist credit
+  </Step>
+
+  <Step title="Select Your Preferred Icon">
+    Click on an icon to select it. The change is applied immediately to your system.
+  </Step>
+
+  <Step title="Verify the Change">
+    Check your taskbar, dock, or application launcher to see the new icon in action.
+  </Step>
+</Steps>
+
+<Tip>
+  Icon customization is supported on macOS and Windows. On Linux, support varies depending on your desktop environment.
+</Tip>
+
+### Platform Support
+
+Icon customization availability:
+
+| Platform | Support Status |
+|----------|----------------|
+| macOS    | ✅ Full support |
+| Windows  | ✅ Full support |
+| Linux    | ⚠️ Desktop environment dependent |
+
+## Theme Customization
+
+### Space-Level Themes
+
+Each space can have its own color theme, automatically applied when you switch to that space:
+
+- **Light Mode**: Choose bright colors for a clean, minimalist look
+- **Dark Mode**: Select darker colors for reduced eye strain
+- **Custom Themes**: Mix and match colors to create unique combinations
+
+### System Theme Integration
+
+Flow Browser respects your system's theme preferences:
+
+- Automatically switches between light and dark modes based on system settings
+- Space colors adapt to the current theme mode
+- Custom overrides available in Settings
+
+## New Tab Customization
+
+### New Tab Mode
+
+Configure how new tabs open:
+
+<Tabs>
+  <Tab title="Command Palette">
+    New tabs open with the command palette (omnibox) focused, allowing immediate typing for search or navigation.
+    
+    **Best for**: Power users who prefer keyboard-driven workflows
+  </Tab>
+  <Tab title="Page">
+    New tabs open with a traditional new tab page interface.
+    
+    **Best for**: Users who prefer visual starting points
+  </Tab>
+</Tabs>
+
+Change this setting in **Settings > General > New Tab Mode**.
+
+## Sidebar Customization
+
+### Sidebar Position
+
+Choose which side of the window displays the sidebar:
+
+<AccordionGroup>
+  <Accordion title="Left Sidebar (Default)" icon="align-left">
+    The sidebar appears on the left side of the browser window, following traditional browser layouts.
+    
+    This is the recommended and fully stable option.
+  </Accordion>
+
+  <Accordion title="Right Sidebar (Experimental)" icon="align-right">
+    The sidebar appears on the right side of the browser window.
+    
+    <Warning>
+      This option is experimental and may have layout issues in certain scenarios.
+    </Warning>
+  </Accordion>
+</AccordionGroup>
+
+Configure in **Settings > General > Sidebar Settings**.
+
+### Sidebar Content
+
+The sidebar includes:
+
+- **Navigation controls** (back, forward, reload)
+- **Space switcher** (quick access to all your spaces)
+- **Space title** (current space name)
+- **Tab list** (all tabs in the current space)
+- **Space pages carousel** (quick access to frequent pages)
+
+## Performance Customization
+
+Optimize Flow Browser's performance for your system:
+
+### Tab Sleep Settings
+
+Configure when inactive tabs should sleep to free up memory:
+
+<Steps>
+  <Step title="Open Performance Settings">
+    Navigate to **Settings > General > Performance Settings**
+  </Step>
+
+  <Step title="Configure Sleep Duration">
+    Choose when tabs should sleep after inactivity:
+    - 5 minutes
+    - 10 minutes
+    - 30 minutes
+    - 1 hour
+    - 2 hours
+    - 4 hours
+    - 8 hours
+    - 12 hours
+    - 24 hours
+    - Never (disable tab sleeping)
+  </Step>
+</Steps>
+
+<Info>
+  Sleeping tabs save memory without losing your place. When you switch back to a sleeping tab, it reloads automatically.
+</Info>
+
+### Tab Archive Settings
+
+Automatically archive tabs that haven't been accessed in a while:
+
+**Archive after**:
+- 12 hours
+- 24 hours
+- 7 days
+- 30 days
+- Never (disable archiving)
+
+Configure in **Settings > General > Performance Settings**.
+
+## Advanced Customization
+
+### Content Blocking
+
+Flow Browser includes a built-in content blocker with multiple levels:
+
+<Tabs>
+  <Tab title="Disabled">
+    No content blocking. All ads, trackers, and other content loads normally.
+  </Tab>
+  <Tab title="Block Ads">
+    Blocks advertisements while allowing other content to load.
+  </Tab>
+  <Tab title="Block Ads & Trackers">
+    Blocks both advertisements and tracking scripts for enhanced privacy.
+  </Tab>
+  <Tab title="Block All">
+    Aggressive blocking that includes ads, trackers, cookie notices, and other annoyances.
+  </Tab>
+</Tabs>
+
+Configure in **Settings > General > Content Blocker**.
+
+### Auto-Update Settings
+
+Control how Flow Browser handles updates:
+
+- **Enabled**: Automatically download and install updates
+- **Disabled**: Manually check for and install updates
+
+Manage in **Settings > General > Auto Update**.
+
+### Experimental Features
+
+Flow Browser includes experimental features for testing:
+
+<AccordionGroup>
+  <Accordion title="Flow PDF Viewer" icon="file-pdf">
+    Enable Flow Browser's built-in PDF viewer instead of using the system default.
+    
+    **Status**: Experimental
+    
+    Configure in **Settings > General > Experimental Settings**.
+  </Accordion>
+</AccordionGroup>
+
+### Advanced Settings
+
+<Warning>
+  Advanced settings are intended for power users. Changing these settings may affect browser stability or compatibility.
+</Warning>
+
+<Accordion title="Manifest V2 Extensions" icon="puzzle-piece">
+  Re-enable support for Manifest V2 extensions (deprecated by Chrome).
+  
+  **Status**: Unstable - May cause compatibility issues
+  
+  Some settings may require a browser restart to take effect.
+  
+  Configure in **Settings > General > Advanced Settings**.
+</Accordion>
+
+## Keyboard Shortcuts Customization
+
+While Flow Browser includes a comprehensive set of default keyboard shortcuts, you can view and learn all available shortcuts in **Settings > Shortcuts**.
+
+<Info>
+  Custom keyboard shortcut mapping is planned for a future release.
+</Info>
+
+## Exporting and Importing Settings
+
+<Note>
+  Settings export/import functionality is under development and will be available in a future update.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Settings Reference" icon="sliders" href="/guides/settings">
+    Complete reference for all Flow Browser settings
+  </Card>
+  <Card title="Keyboard Shortcuts" icon="keyboard" href="/features/keyboard-shortcuts">
+    Learn all available keyboard shortcuts
+  </Card>
+  <Card title="Privacy Features" icon="shield" href="/features/privacy">
+    Understand Flow Browser's privacy protections
+  </Card>
+  <Card title="Extensions" icon="puzzle-piece" href="/features/extensions">
+    Manage and install browser extensions
+  </Card>
+</CardGroup>

@@ -1,0 +1,386 @@
+---
+title: 'Contributing'
+description: 'How to contribute to Flow Browser development'
+---
+
+## Welcome Contributors!
+
+Flow Browser is an open-source project, and we welcome contributions from the community. Whether you're fixing bugs, adding features, or improving documentation, your help is appreciated!
+
+## Getting Started
+
+<Steps>
+  <Step title="Fork and Clone">
+    Fork the repository on GitHub and clone your fork:
+    
+    ```bash
+    git clone https://github.com/YOUR-USERNAME/flow-browser.git
+    cd flow-browser
+    ```
+  </Step>
+
+  <Step title="Set Up Development Environment">
+    Follow the [development setup guide](/development/setup) to install prerequisites and dependencies:
+    
+    ```bash
+    bun install
+    bun dev:watch
+    ```
+  </Step>
+
+  <Step title="Create a Branch">
+    Create a new branch for your work:
+    
+    ```bash
+    git checkout -b feature/your-feature-name
+    ```
+    
+    Use descriptive branch names:
+    - `feature/` - New features
+    - `fix/` - Bug fixes
+    - `docs/` - Documentation changes
+    - `refactor/` - Code refactoring
+  </Step>
+</Steps>
+
+## Development Workflow
+
+### Making Changes
+
+<Steps>
+  <Step title="Write Code">
+    Make your changes following the project's coding standards:
+    
+    - Use TypeScript for type safety
+    - Follow existing code patterns
+    - Keep functions small and focused
+    - Add comments for complex logic
+  </Step>
+
+  <Step title="Test Your Changes">
+    Manually test your changes:
+    
+    ```bash
+    bun dev:watch
+    ```
+    
+    <Info>
+      Flow Browser doesn't have automated tests. Thoroughly test your changes manually.
+    </Info>
+  </Step>
+
+  <Step title="Run Quality Checks">
+    Before committing, run all quality checks:
+    
+    ```bash
+    bun run lint
+    bun run typecheck
+    bun run format
+    ```
+    
+    <Warning>
+      Fix all linting and type errors. The CI will fail if these checks don't pass.
+    </Warning>
+  </Step>
+</Steps>
+
+### Code Quality Standards
+
+<AccordionGroup>
+  <Accordion title="TypeScript">
+    - Enable strict type checking
+    - Avoid `any` types
+    - Use proper interfaces and types
+    - Export types for reusability
+    
+    ```typescript
+    // Good
+    interface BookmarkData {
+      title: string;
+      url: string;
+      favicon?: string;
+    }
+    
+    // Bad
+    const bookmark: any = { /* ... */ };
+    ```
+  </Accordion>
+
+  <Accordion title="React Components">
+    - Use functional components with hooks
+    - Keep components small and focused
+    - Extract reusable logic into custom hooks
+    - Use proper prop types
+    
+    ```typescript
+    interface ButtonProps {
+      label: string;
+      onClick: () => void;
+      disabled?: boolean;
+    }
+    
+    export function Button({ label, onClick, disabled }: ButtonProps) {
+      return (
+        <button onClick={onClick} disabled={disabled}>
+          {label}
+        </button>
+      );
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Animations">
+    <Warning>
+      Use `motion/react`, **not** `framer-motion`.
+    </Warning>
+    
+    ```typescript
+    import { motion } from 'motion/react';
+    
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+    >
+      Content
+    </motion.div>
+    ```
+  </Accordion>
+
+  <Accordion title="Styling">
+    - Use TailwindCSS utility classes
+    - Follow existing styling patterns
+    - Use CSS variables for theming
+    - Keep styles consistent across components
+    
+    ```tsx
+    <div className="flex items-center gap-2 rounded-lg bg-gray-100 px-4 py-2">
+      Content
+    </div>
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Commit Guidelines
+
+### Commit Message Format
+
+Use clear, descriptive commit messages:
+
+```
+type: brief description
+
+Detailed explanation of what changed and why.
+```
+
+**Types:**
+- `feat:` - New feature
+- `fix:` - Bug fix
+- `docs:` - Documentation changes
+- `refactor:` - Code refactoring
+- `style:` - Formatting, missing semicolons, etc.
+- `perf:` - Performance improvements
+- `test:` - Adding or updating tests
+- `chore:` - Maintenance tasks
+
+**Examples:**
+
+```bash
+feat: add bookmark folders support
+
+Implemented nested folder structure for organizing bookmarks.
+Added UI for creating, renaming, and deleting folders.
+```
+
+```bash
+fix: prevent tab crash when loading large PDFs
+
+Added memory limit check before loading PDF documents.
+Fixes #123
+```
+
+## Submitting Changes
+
+<Steps>
+  <Step title="Commit Your Changes">
+    ```bash
+    git add .
+    git commit -m "feat: add your feature"
+    ```
+  </Step>
+
+  <Step title="Push to Your Fork">
+    ```bash
+    git push origin feature/your-feature-name
+    ```
+  </Step>
+
+  <Step title="Create Pull Request">
+    1. Go to your fork on GitHub
+    2. Click "Pull Request"
+    3. Select your branch
+    4. Fill out the PR template with:
+       - Description of changes
+       - Related issues (if any)
+       - Screenshots (for UI changes)
+       - Testing performed
+  </Step>
+
+  <Step title="Code Review">
+    - Respond to reviewer feedback
+    - Make requested changes
+    - Keep the PR focused and small
+    - Be patient and respectful
+  </Step>
+</Steps>
+
+## Pull Request Checklist
+
+<AccordionGroup>
+  <Accordion title="Before Submitting">
+    - [ ] Code follows project style guidelines
+    - [ ] `bun lint` passes without errors
+    - [ ] `bun typecheck` passes without errors
+    - [ ] `bun format` has been run
+    - [ ] Changes have been manually tested
+    - [ ] No console errors or warnings
+    - [ ] Commit messages are clear and descriptive
+  </Accordion>
+
+  <Accordion title="For UI Changes">
+    - [ ] Tested on multiple screen sizes
+    - [ ] Dark/light mode both work
+    - [ ] Animations are smooth
+    - [ ] Accessibility considered
+    - [ ] Screenshots included in PR
+  </Accordion>
+
+  <Accordion title="For Features">
+    - [ ] Feature is complete and functional
+    - [ ] Edge cases handled
+    - [ ] Error states handled gracefully
+    - [ ] User feedback provided (toasts, etc.)
+    - [ ] Documentation updated if needed
+  </Accordion>
+</AccordionGroup>
+
+## Reporting Issues
+
+### Bug Reports
+
+When reporting bugs, include:
+
+- **Description**: What happened vs. what should happen
+- **Steps to reproduce**: Detailed steps to recreate the bug
+- **Environment**: OS, Flow Browser version, Electron version
+- **Screenshots**: If applicable
+- **Console logs**: Any error messages
+
+### Feature Requests
+
+Submit feature requests at: [flowbrowser.userjot.com](https://flowbrowser.userjot.com/)
+
+Include:
+- **Description**: What feature you want
+- **Use case**: Why it's needed
+- **Examples**: How it might work
+
+## Communication
+
+<CardGroup cols={2}>
+  <Card title="GitHub Issues" icon="github">
+    For bug reports and feature discussions
+  </Card>
+  <Card title="Pull Requests" icon="code-pull-request">
+    For code contributions and reviews
+  </Card>
+  <Card title="User Feedback" icon="messages">
+    [flowbrowser.userjot.com](https://flowbrowser.userjot.com/)
+  </Card>
+  <Card title="Documentation" icon="book">
+    This documentation site
+  </Card>
+</CardGroup>
+
+## Project-Specific Notes
+
+### Castlabs Electron Fork
+
+<Info>
+  Flow Browser uses a Castlabs fork of Electron for Widevine DRM support. This is normal and intentional.
+</Info>
+
+In `package.json`:
+```json
+"electron": "https://github.com/castlabs/electron-releases#v40.1.0+wvcus"
+```
+
+Don't change this unless updating the Electron version.
+
+### Database Changes
+
+When modifying the SQLite schema:
+
+1. Update Drizzle ORM schema files
+2. Generate migrations: `bun run drizzle-kit generate`
+3. Test migrations with existing data
+4. Document breaking changes
+
+### Extension API Changes
+
+When modifying extension support:
+
+- Test with popular Chrome extensions
+- Ensure backward compatibility
+- Document API changes
+
+## Code of Conduct
+
+Be respectful, inclusive, and professional:
+
+- Welcome newcomers
+- Provide constructive feedback
+- Focus on the code, not the person
+- Respect different perspectives
+- Help others learn and grow
+
+## License
+
+<Warning>
+  By contributing, you agree that your contributions will be licensed under the GPL-3.0 License.
+</Warning>
+
+Flow Browser is licensed under the GNU General Public License v3.0 (GPL-3.0). All contributions are subject to this license.
+
+## Recognition
+
+Contributors are recognized in:
+
+- GitHub contributors page
+- Release notes (for significant contributions)
+- CONTRIBUTORS.md file (if exists)
+
+## Need Help?
+
+If you're stuck or have questions:
+
+1. Check the [documentation](/introduction)
+2. Search existing GitHub issues
+3. Ask in a new GitHub issue
+4. Review the [architecture guide](/development/architecture)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Development Setup" icon="screwdriver-wrench" href="/development/setup">
+    Set up your development environment
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/development/architecture">
+    Understand the codebase structure
+  </Card>
+  <Card title="Building" icon="hammer" href="/development/building">
+    Learn how to build the application
+  </Card>
+  <Card title="GitHub Repository" icon="github" href="https://github.com/MultiboxLabs/flow-browser">
+    Visit the Flow Browser repository
+  </Card>
+</CardGroup>

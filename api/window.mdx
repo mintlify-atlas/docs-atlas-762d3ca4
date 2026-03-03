@@ -1,0 +1,362 @@
+---
+title: 'BrowserWindow'
+description: 'Manages browser window UI, layout, and view hierarchy'
+---
+
+The `BrowserWindow` class extends Electron's `BrowserWindow` and manages the browser UI, view hierarchy, page layout, and window-level features like the omnibox and sidebar.
+
+## Overview
+
+BrowserWindow provides:
+
+- Window creation with custom chrome (hidden titlebar, traffic lights)
+- View management for tabs, omnibox, and UI components
+- Declarative page bounds system for tab layout
+- Sidebar animation with synchronized interpolation
+- Space management for organizing tabs
+- Fullscreen handling with proper layout updates
+
+## Window Types
+
+<ParamField path="normal" type="BrowserWindowType">
+  Standard browser window with full UI (800x400 minimum)
+</ParamField>
+
+<ParamField path="popup" type="BrowserWindowType">
+  Popup window with minimal chrome (300x200 minimum)
+</ParamField>
+
+## Creating a Window
+
+```typescript
+import { browserWindowsController } from '@/controllers/windows-controller/interfaces/browser';
+
+// Create a normal window
+const window = await browserWindowsController.create('normal', {
+  width: 1280,
+  height: 720,
+  x: 100,
+  y: 100
+});
+
+// Create a popup window
+const popup = await browserWindowsController.create('popup', {
+  width: 400,
+  height: 300
+});
+```
+
+### BrowserWindowCreationOptions
+
+<ParamField path="width" type="number">
+  Window width in pixels (default: 1280)
+</ParamField>
+
+<ParamField path="height" type="number">
+  Window height in pixels (default: 720)
+</ParamField>
+
+<ParamField path="x" type="number">
+  Window x position (centers if x and y not provided)
+</ParamField>
+
+<ParamField path="y" type="number">
+  Window y position (centers if x and y not provided)
+</ParamField>
+
+## Properties
+
+### Window Identification
+
+<ResponseField name="id" type="number">
+  Unique window ID (from Electron BrowserWindow)
+</ResponseField>
+
+<ResponseField name="browserWindowType" type="BrowserWindowType">
+  Window type: 'normal' or 'popup'
+</ResponseField>
+
+<ResponseField name="browserWindow" type="ElectronBrowserWindow">
+  Underlying Electron BrowserWindow instance
+</ResponseField>
+
+### View Management
+
+<ResponseField name="viewManager" type="ViewManager">
+  Manages the view hierarchy (tabs, omnibox, UI overlays)
+</ResponseField>
+
+<ResponseField name="coreWebContents" type="WebContents[]">
+  Array of core WebContents (window + omnibox)
+</ResponseField>
+
+<ResponseField name="omnibox" type="Omnibox">
+  The omnibox/address bar view
+</ResponseField>
+
+### Layout & Bounds
+
+<ResponseField name="pageBounds" type="PageBounds">
+  Current page bounds for tab views
+  
+  ```typescript
+  interface PageBounds {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }
+  ```
+</ResponseField>
+
+### Space Management
+
+<ResponseField name="currentSpaceId" type="string | null">
+  ID of the currently active space in this window
+</ResponseField>
+
+## Methods
+
+### Layout Management
+
+<ParamField path="setLayoutParams" type="(params: PageLayoutParams, sentAt?: number) => void">
+  Updates layout parameters and recomputes page bounds. Handles sidebar animations.
+  
+  **Parameters:**
+  - `params`: Declarative layout parameters from renderer
+  - `sentAt`: Timestamp for IPC delay compensation
+  
+  ```typescript
+  window.setLayoutParams({
+    topbarHeight: 40,
+    topbarVisible: true,
+    sidebarWidth: 300,
+    sidebarVisible: true,
+    sidebarSide: 'left',
+    sidebarAnimating: true,
+    contentTopOffset: 0
+  });
+  ```
+</ParamField>
+
+<ParamField path="setPageBounds" type="(bounds: PageBounds) => void">
+  Legacy method: sets pre-computed bounds from renderer. Triggers page-bounds-changed event.
+  
+  ```typescript
+  window.setPageBounds({ x: 0, y: 40, width: 1200, height: 680 });
+  ```
+</ParamField>
+
+### Space Management
+
+<ParamField path="setCurrentSpace" type="(spaceId: string) => void">
+  Sets the active space for this window. Emits 'current-space-changed' event.
+  
+  ```typescript
+  window.setCurrentSpace('work-space');
+  ```
+</ParamField>
+
+### macOS Traffic Lights
+
+<ParamField path="setMacOSTrafficLights" type="(visible: boolean) => void">
+  Shows or hides the macOS window control buttons
+  
+  ```typescript
+  window.setMacOSTrafficLights(false); // Hide traffic lights
+  ```
+</ParamField>
+
+### Messaging
+
+<ParamField path="sendMessageToCoreWebContents" type="(channel: string, ...args: any[]) => void">
+  Sends IPC message to all core WebContents (window + omnibox)
+  
+  ```typescript
+  window.sendMessageToCoreWebContents('theme-changed', { theme: 'dark' });
+  ```
+</ParamField>
+
+### Lifecycle
+
+<ParamField path="destroy" type="(force?: boolean) => void">
+  Destroys the window and cleans up resources. All tabs in the window are destroyed after a 500ms delay.
+  
+  ```typescript
+  window.destroy(); // Normal close
+  window.destroy(true); // Force close (skip prompts)
+  ```
+</ParamField>
+
+## Events
+
+BrowserWindow extends `BaseWindow` and emits:
+
+<ResponseField name="page-bounds-changed" type="[bounds: PageBounds]">
+  Emitted when page bounds change (resize, sidebar toggle, etc.)
+  
+  ```typescript
+  window.on('page-bounds-changed', (bounds) => {
+    console.log('New bounds:', bounds);
+  });
+  ```
+</ResponseField>
+
+<ResponseField name="current-space-changed" type="[spaceId: string]">
+  Emitted when the active space changes
+  
+  ```typescript
+  window.on('current-space-changed', (spaceId) => {
+    console.log('Space changed to:', spaceId);
+  });
+  ```
+</ResponseField>
+
+<ResponseField name="enter-full-screen" type="[]">
+  Emitted when window enters fullscreen mode
+</ResponseField>
+
+<ResponseField name="leave-full-screen" type="[]">
+  Emitted when window exits fullscreen mode
+</ResponseField>
+
+## Declarative Page Bounds
+
+Flow Browser uses a declarative layout system where the renderer sends layout parameters and the main process computes page bounds:
+
+```typescript
+// Renderer sends layout params
+window.setLayoutParams({
+  topbarHeight: 40,
+  topbarVisible: true,
+  sidebarWidth: 300,
+  sidebarVisible: true,
+  sidebarSide: 'left',
+  sidebarAnimating: false
+});
+
+// Main process computes bounds
+const bounds = window.pageBounds;
+// { x: 312, y: 40, width: 956, height: 668 }
+// (assuming 1280x720 window, 12px padding)
+```
+
+### Sidebar Animation
+
+When `sidebarAnimating` is true, the window automatically interpolates sidebar width with an ease-in-out curve matching the CSS transition:
+
+```typescript
+// Start sidebar animation
+window.setLayoutParams({
+  ...params,
+  sidebarVisible: true,
+  sidebarAnimating: true
+}, Date.now());
+
+// Page bounds update smoothly over 200ms
+// Animation completes and sidebarAnimating can be set to false
+```
+
+The interpolation:
+- Uses 200ms duration (SIDEBAR_ANIMATE_DURATION)
+- Applies ease-in-out timing function
+- Backs off the timestamp to compensate for IPC delay
+- Adds a small buffer during animation to prevent visual artifacts
+
+## View Layers
+
+Views are organized in layers (z-index):
+
+```typescript
+import { ViewLayer } from '~/layers';
+
+// ViewLayer.TAB = 0 (tab content)
+// ViewLayer.OMNIBOX = 100 (address bar)
+// Higher layers appear on top
+```
+
+## Window Persistence
+
+Window bounds are automatically persisted:
+
+- On resize (debounced 500ms)
+- On move (debounced 500ms)
+- On initial creation
+
+Persisted state includes width, height, x, y, and popup flag.
+
+## Example: Creating a Custom Window
+
+```typescript
+import { browserWindowsController } from '@/controllers/windows-controller/interfaces/browser';
+import { tabsController } from '@/controllers/tabs-controller';
+
+// Create window
+const window = await browserWindowsController.create('normal', {
+  width: 1400,
+  height: 900
+});
+
+// Set space
+window.setCurrentSpace('work-space');
+
+// Create tabs
+const tab1 = await tabsController.createTab(
+  window.id,
+  'default-profile',
+  'work-space',
+  undefined,
+  { url: 'https://example.com' }
+);
+
+const tab2 = await tabsController.createTab(
+  window.id,
+  'default-profile',
+  'work-space',
+  undefined,
+  { url: 'https://github.com' }
+);
+
+// Set active tab
+tabsController.setActiveTab(tab1);
+
+// Listen for bounds changes
+window.on('page-bounds-changed', (bounds) => {
+  console.log('Page bounds:', bounds);
+  // Update tab layouts
+  tabsController.handlePageBoundsChanged(window.id);
+});
+```
+
+## Platform Differences
+
+### macOS
+
+- Uses vibrancy effect ("popover")
+- Hidden titlebar with traffic lights
+- Traffic lights visibility can be toggled
+- Transparent background (#00000000)
+
+### Windows
+
+- Hidden titlebar with overlay controls
+- Title bar overlay height: 30px
+- Symbol color adapts to space theme
+- Opaque background (#000000)
+
+### Linux
+
+- Default frame (titleBarStyle not set)
+- Title bar overlay with custom controls
+- Opaque background
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Browser" icon="globe" href="/api/browser">
+    Learn about browser controllers
+  </Card>
+  <Card title="Tab" icon="browser" href="/api/tab">
+    Learn about the Tab class
+  </Card>
+</CardGroup>

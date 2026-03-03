@@ -1,0 +1,215 @@
+---
+title: 'Browser'
+description: 'Main controller that coordinates browser components'
+---
+
+The Browser class is not directly accessible in the codebase - Flow Browser uses specialized controllers for managing windows, profiles, and tabs. The main entry point coordinates these controllers to provide a unified browser experience.
+
+## Architecture Overview
+
+Flow Browser is built on Electron and uses a modular controller architecture:
+
+- **Windows Controller**: Manages browser windows and UI
+- **Profiles Controller**: Handles user profiles and sessions
+- **Tabs Controller**: Manages tab lifecycle, layout, and state
+- **Spaces Controller**: Organizes tabs into workspaces
+
+## Core Controllers
+
+### browserWindowsController
+
+Manages browser window creation and lifecycle.
+
+```typescript
+import { browserWindowsController } from '@/controllers/windows-controller/interfaces/browser';
+
+// Create a new window
+const window = await browserWindowsController.create('normal', {
+  width: 1280,
+  height: 720
+});
+
+// Get focused window
+const focusedWindow = browserWindowsController.getFocusedWindow();
+
+// Get all windows
+const windows = browserWindowsController.getWindows();
+```
+
+#### Methods
+
+<ParamField path="create" type="(type, options) => Promise<BrowserWindow>">
+  Creates a new browser window
+  
+  **Parameters:**
+  - `type`: `'normal' | 'popup'` - Window type
+  - `options`: Window creation options (width, height, x, y)
+  
+  **Returns:** Promise that resolves to the created BrowserWindow
+</ParamField>
+
+<ParamField path="instantCreate" type="(type, options) => BrowserWindow">
+  Creates a window without waiting for Electron to be ready. Only use if Electron is already initialized.
+</ParamField>
+
+<ParamField path="getWindows" type="() => BrowserWindow[]">
+  Returns all browser windows
+</ParamField>
+
+<ParamField path="getFocusedWindow" type="() => BrowserWindow | undefined">
+  Returns the currently focused window
+</ParamField>
+
+<ParamField path="getWindowById" type="(id: number) => BrowserWindow | undefined">
+  Retrieves a window by its ID
+</ParamField>
+
+<ParamField path="getWindowFromWebContents" type="(webContents: WebContents) => BrowserWindow | null">
+  Finds a window from its WebContents instance
+</ParamField>
+
+<ParamField path="destroyAll" type="(force?: boolean) => void">
+  Destroys all browser windows
+  
+  **Parameters:**
+  - `force`: Whether to force destroy (default: false)
+</ParamField>
+
+### loadedProfilesController
+
+Manages loaded user profiles and their sessions.
+
+```typescript
+import { loadedProfilesController } from '@/controllers/loaded-profiles-controller';
+
+// Load a profile
+await loadedProfilesController.load('profile-id');
+
+// Get loaded profile
+const profile = loadedProfilesController.get('profile-id');
+
+// Get all loaded profiles
+const profiles = loadedProfilesController.getAll();
+```
+
+#### Methods
+
+<ParamField path="load" type="(profileId: string) => Promise<boolean>">
+  Loads a profile and its session. Returns true if successful.
+</ParamField>
+
+<ParamField path="get" type="(profileId: string) => LoadedProfile | undefined">
+  Retrieves a loaded profile by ID
+</ParamField>
+
+<ParamField path="getAll" type="() => LoadedProfile[]">
+  Returns all loaded profiles
+</ParamField>
+
+<ParamField path="unload" type="(profileId: string) => boolean">
+  Unloads a profile and destroys its tabs
+</ParamField>
+
+### tabsController
+
+Manages tab creation, lifecycle, and state.
+
+```typescript
+import { tabsController } from '@/controllers/tabs-controller';
+
+// Create a new tab
+const tab = await tabsController.createTab(windowId, profileId, spaceId);
+
+// Get tab by ID
+const tab = tabsController.getTabById(tabId);
+
+// Set active tab
+tabsController.setActiveTab(tab);
+```
+
+#### Methods
+
+<ParamField path="createTab" type="(windowId?, profileId?, spaceId?, options?) => Promise<Tab>">
+  Creates a new tab. If parameters are omitted, uses focused window and last used space.
+  
+  **Parameters:**
+  - `windowId`: Window to create tab in (optional)
+  - `profileId`: Profile for the tab (optional)
+  - `spaceId`: Space to assign tab to (optional)
+  - `webContentsViewOptions`: Electron WebContentsView options (optional)
+  - `tabCreationOptions`: Additional tab options (optional)
+</ParamField>
+
+<ParamField path="getTabById" type="(tabId: number) => Tab | undefined">
+  Retrieves a tab by its ID
+</ParamField>
+
+<ParamField path="getTabByWebContents" type="(webContents: WebContents) => Tab | undefined">
+  Finds a tab from its WebContents
+</ParamField>
+
+<ParamField path="setActiveTab" type="(tab: Tab) => void">
+  Sets the active tab for its window and space
+</ParamField>
+
+<ParamField path="getTabsInWindow" type="(windowId: number) => Tab[]">
+  Returns all tabs in a window
+</ParamField>
+
+<ParamField path="getTabsInProfile" type="(profileId: string) => Tab[]">
+  Returns all tabs in a profile
+</ParamField>
+
+## Events
+
+Controllers emit TypedEventEmitter events that you can listen to:
+
+```typescript
+loadedProfilesController.on('profile-loaded', (profileId) => {
+  console.log(`Profile ${profileId} loaded`);
+});
+
+tabsController.on('tab-created', (tab) => {
+  console.log(`Tab ${tab.id} created`);
+});
+```
+
+## Example: Creating a Complete Browser Session
+
+```typescript
+import { browserWindowsController } from '@/controllers/windows-controller/interfaces/browser';
+import { loadedProfilesController } from '@/controllers/loaded-profiles-controller';
+import { tabsController } from '@/controllers/tabs-controller';
+
+// Create a window
+const window = await browserWindowsController.create('normal');
+
+// Load a profile
+await loadedProfilesController.load('default');
+
+// Create a tab
+const tab = await tabsController.createTab(
+  window.id,
+  'default',
+  'main-space',
+  undefined,
+  { url: 'https://example.com' }
+);
+
+// Set as active
+tabsController.setActiveTab(tab);
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Tab" icon="browser" href="/api/tab">
+    Learn about the Tab class
+  </Card>
+  <Card title="Window" icon="window" href="/api/window">
+    Learn about BrowserWindow
+  </Card>
+  <Card title="Profile" icon="user" href="/api/profile">
+    Learn about LoadedProfile
+  </Card>
+</CardGroup>

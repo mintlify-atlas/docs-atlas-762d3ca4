@@ -1,0 +1,238 @@
+---
+title: Browser Navigation
+description: Learn how to navigate efficiently using Flow Browser's unique features
+icon: compass
+---
+
+## Navigation Controls
+
+Flow Browser provides intuitive navigation controls accessible from the sidebar, combining familiar browser navigation with modern interactions.
+
+### Basic Navigation Buttons
+
+The navigation controls are located at the top of the browser sidebar:
+
+<CardGroup cols={3}>
+  <Card title="Back" icon="arrow-left">
+    Navigate to the previous page in your browsing history
+  </Card>
+  <Card title="Forward" icon="arrow-right">
+    Move forward in your browsing history
+  </Card>
+  <Card title="Reload" icon="rotate-right">
+    Refresh the current page
+  </Card>
+</CardGroup>
+
+### Navigation History
+
+Flow Browser provides advanced navigation history features:
+
+<Steps>
+  <Step title="Right-Click History">
+    Right-click the **Back** or **Forward** buttons to view your complete navigation history for the current tab.
+    
+    - See all previous pages in chronological order
+    - Jump directly to any page in your history
+    - View page titles for easy identification
+  </Step>
+
+  <Step title="Quick Navigation">
+    Click any entry in the history dropdown to navigate directly to that page without stepping through each intermediate page.
+  </Step>
+</Steps>
+
+<Tip>
+  The navigation buttons include smooth animations that provide visual feedback when you interact with them.
+</Tip>
+
+## Command Palette (Omnibox)
+
+The command palette is Flow Browser's powerful unified input for searching, navigating, and executing actions.
+
+### Opening the Command Palette
+
+<Tabs>
+  <Tab title="Keyboard Shortcut">
+    Press **Cmd/Ctrl + L** or **Cmd/Ctrl + K** to open the command palette.
+  </Tab>
+  <Tab title="New Tab">
+    If you've configured "Command Palette" as your New Tab Mode, the command palette opens automatically with new tabs.
+  </Tab>
+  <Tab title="Address Bar">
+    Click on the address bar area in the browser UI.
+  </Tab>
+</Tabs>
+
+### What You Can Do
+
+The command palette supports multiple action types:
+
+<AccordionGroup>
+  <Accordion title="Search the Web" icon="magnifying-glass">
+    Type your search query and press Enter to search using your default search engine.
+    
+    Example: `how to bake bread`
+  </Accordion>
+
+  <Accordion title="Navigate to URLs" icon="link">
+    Enter a URL to navigate directly to a website.
+    
+    Examples:
+    - `github.com`
+    - `https://example.com`
+    - `192.168.1.1`
+  </Accordion>
+
+  <Accordion title="Browse History" icon="clock-rotate-left">
+    Your browsing history appears as you type, showing relevant pages you've visited before.
+    
+    - History entries are marked with a clock icon
+    - URL is displayed below the page title
+    - Results are sorted by relevance
+  </Accordion>
+
+  <Accordion title="Switch to Open Tabs" icon="window">
+    If a URL is already open in another tab, the command palette will show a "Switch to Tab" action instead of opening a duplicate.
+  </Accordion>
+
+  <Accordion title="Execute Pedals (Quick Actions)" icon="bolt">
+    Pedals are quick actions you can trigger from the command palette:
+    
+    - **Settings** - Open browser settings
+    - **New Window** - Open a new browser window
+    - **Extensions** - Manage browser extensions
+  </Accordion>
+
+  <Accordion title="Zero-Suggest" icon="sparkles">
+    When you focus the command palette without typing, Flow Browser shows suggested sites and actions based on your browsing patterns.
+  </Accordion>
+</AccordionGroup>
+
+### Command Palette Features
+
+<Info>
+  **Smart Detection**: The command palette automatically determines whether your input is a URL or search query, eliminating the need to manually specify.
+</Info>
+
+**Keyboard Navigation**:
+- Use **↑** and **↓** arrow keys to navigate through suggestions
+- Press **Enter** to select the highlighted suggestion
+- Press **Esc** to close the command palette
+
+**Visual Feedback**:
+- Each suggestion type has a unique icon and color
+- The selected suggestion is highlighted for easy identification
+- Action labels (Search, Navigate, Switch to Tab) clarify what will happen
+
+## Loading States
+
+### Stop Loading
+
+When a page is loading:
+- The reload button transforms into a **stop loading** button (X icon)
+- Click the stop button to cancel the current page load
+- The button smoothly animates between reload and stop states
+
+<Tip>
+  The navigation controls show animated feedback when you interact with them, providing a modern and responsive feel.
+</Tip>
+
+## Tab Management
+
+Flow Browser organizes tabs within spaces for better context management:
+
+### Tab Operations
+
+- **Create New Tab**: Click the + button in the tab bar or press Cmd/Ctrl + T
+- **Close Tab**: Click the X on a tab or press Cmd/Ctrl + W
+- **Switch Tabs**: Click on a tab or use Cmd/Ctrl + Tab
+- **Reorder Tabs**: Drag and drop tabs to rearrange them
+
+### Tab States
+
+Flow Browser supports advanced tab lifecycle management:
+
+<Accordion title="Active Tabs">
+  Tabs that are currently in use and fully loaded in memory.
+</Accordion>
+
+<Accordion title="Sleeping Tabs">
+  Inactive tabs that have been unloaded from memory to improve performance. Sleeping tabs retain their state and reload when you switch back to them.
+  
+  Configure sleep behavior in **Settings > General > Performance Settings**.
+</Accordion>
+
+<Accordion title="Archived Tabs">
+  Tabs that haven't been accessed for a specified duration are automatically archived to keep your workspace clean.
+  
+  Configure archiving in **Settings > General > Performance Settings**.
+</Accordion>
+
+## Spaces Navigation
+
+### What Are Spaces?
+
+Spaces are isolated browsing contexts that help you organize tabs by project, context, or purpose. Each space has:
+
+- Its own set of tabs
+- Custom theme colors
+- Unique icon
+- Independent browsing session
+
+### Switching Spaces
+
+<Steps>
+  <Step title="Open Space Switcher">
+    Click on the current space indicator in the sidebar to open the space switcher.
+  </Step>
+
+  <Step title="Select a Space">
+    Choose from your available spaces. Each space displays:
+    - Space name
+    - Custom icon
+    - Color theme
+    - Preview of open tabs (if available)
+  </Step>
+
+  <Step title="Switch Instantly">
+    Click on a space to switch to it immediately. Your tabs and browsing context change to match the selected space.
+  </Step>
+</Steps>
+
+### Managing Spaces
+
+For detailed information on creating, customizing, and managing spaces, see the [Customization Guide](/guides/customization).
+
+## Sidebar Position
+
+You can configure the sidebar position based on your preference:
+
+1. Open **Settings > General > Sidebar Settings**
+2. Choose between:
+   - **Left** (default)
+   - **Right** (experimental)
+
+<Warning>
+  Right sidebar positioning is experimental and may have layout issues in some scenarios.
+</Warning>
+
+## Find in Page
+
+Flow Browser includes a built-in find-in-page feature:
+
+- Press **Cmd/Ctrl + F** to open the find bar
+- Type your search term to highlight matches on the page
+- Use the up/down arrows to navigate between matches
+- Press **Esc** or click outside to close the find bar
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Customize Your Browser" icon="palette" href="/guides/customization">
+    Learn how to personalize spaces, themes, and icons
+  </Card>
+  <Card title="Settings Guide" icon="sliders" href="/guides/settings">
+    Explore all available settings and configurations
+  </Card>
+</CardGroup>

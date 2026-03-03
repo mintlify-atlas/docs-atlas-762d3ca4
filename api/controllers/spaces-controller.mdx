@@ -1,0 +1,484 @@
+---
+title: 'SpacesController'
+description: 'Manages workspaces for organizing tabs by context in Flow Browser'
+---
+
+## Overview
+
+The `SpacesController` manages spaces - isolated workspaces that help users organize tabs by context (work, personal, research, etc.). Each space belongs to a profile and maintains its own set of tabs.
+
+<Info>
+  **Import**: `import { spacesController } from '@/controllers/spaces-controller'`
+  
+  The controller is a singleton instance exported as `spacesController`.
+</Info>
+
+## Key Concepts
+
+### What is a Space?
+
+A space is a container for tabs within a profile. Think of it as a virtual workspace:
+
+- Each space has a unique ID and name
+- Spaces belong to a specific profile
+- Tabs can be organized into different spaces
+- Users can switch between spaces to change context
+- Each space tracks when it was last used
+
+<CardGroup cols={2}>
+  <Card title="Work Space" icon="briefcase">
+    Email, documents, team chat
+  </Card>
+  <Card title="Personal Space" icon="home">
+    Social media, shopping, entertainment
+  </Card>
+  <Card title="Research Space" icon="book">
+    Reference materials, documentation
+  </Card>
+  <Card title="Development Space" icon="code">
+    GitHub, Stack Overflow, documentation
+  </Card>
+</CardGroup>
+
+### Data Structure
+
+```typescript
+interface SpaceData {
+  profileId: string;    // Parent profile ID
+  name: string;         // Display name
+  order: number;        // Display order in UI
+  lastUsed: number;     // Timestamp of last access
+  createdAt: number;    // Creation timestamp
+}
+
+type SpaceDataWithId = SpaceData & { id: string };
+```
+
+## Caching Strategy
+
+The SpacesController uses an intelligent caching system:
+
+- Spaces are loaded on-demand from the database
+- Once loaded, they're cached in memory
+- Cache is automatically updated on modifications
+- `requestedAllSpaces` tracks which profiles are fully loaded
+
+<Note>
+  The controller maintains a `RawSpacesController` internally for database operations, while providing a cached API for performance.
+</Note>
+
+## Core Methods
+
+### Creating Spaces
+
+#### create()
+
+Create a new space in a profile.
+
+```typescript
+public async create(profileId: string, spaceName: string): Promise<boolean>
+```
+
+<ParamField path="profileId" type="string" required>
+  The profile ID to create the space in
+</ParamField>
+
+<ParamField path="spaceName" type="string" required>
+  Display name for the space
+</ParamField>
+
+<ResponseField name="return" type="Promise<boolean>">
+  `true` if space was created successfully
+</ResponseField>
+
+**Example**:
+
+```typescript
+const success = await spacesController.create(
+  'main-profile',
+  'Work Projects'
+);
+
+if (success) {
+  console.log('Space created successfully');
+}
+```
+
+### Retrieving Spaces
+
+#### get()
+
+Get a space by ID, searching across all profiles.
+
+```typescript
+public async get(spaceId: string): Promise<SpaceData | null>
+```
+
+**Example**:
+
+```typescript
+const space = await spacesController.get('space-123');
+if (space) {
+  console.log(`Space: ${space.name}`);
+  console.log(`Profile: ${space.profileId}`);
+}
+```
+
+#### getWithProfile()
+
+Get a space by ID within a specific profile (faster than `get()`).
+
+```typescript
+public async getWithProfile(
+  profileId: string,
+  spaceId: string
+): Promise<SpaceData | null>
+```
+
+**Example**:
+
+```typescript
+const space = await spacesController.getWithProfile(
+  'main-profile',
+  'space-123'
+);
+```
+
+#### getAllFromProfile()
+
+Get all spaces in a profile, sorted by order.
+
+```typescript
+public async getAllFromProfile(profileId: string): Promise<SpaceDataWithId[]>
+```
+
+**Example**:
+
+```typescript
+const spaces = await spacesController.getAllFromProfile('main-profile');
+
+spaces.forEach(space => {
+  console.log(`${space.name} (ID: ${space.id})`);
+});
+```
+
+#### getAll()
+
+Get all spaces across all profiles, sorted by order.
+
+```typescript
+public async getAll(): Promise<SpaceDataWithId[]>
+```
+
+**Example**:
+
+```typescript
+const allSpaces = await spacesController.getAll();
+console.log(`Total spaces: ${allSpaces.length}`);
+```
+
+### Updating Spaces
+
+#### update()
+
+Update space properties.
+
+```typescript
+public async update(
+  profileId: string,
+  spaceId: string,
+  spaceData: Partial<SpaceData>
+): Promise<boolean>
+```
+
+<ParamField path="profileId" type="string" required>
+  Profile ID containing the space
+</ParamField>
+
+<ParamField path="spaceId" type="string" required>
+  Space ID to update
+</ParamField>
+
+<ParamField path="spaceData" type="Partial<SpaceData>" required>
+  Fields to update (name, order, lastUsed, etc.)
+</ParamField>
+
+**Example**:
+
+```typescript
+// Rename a space
+await spacesController.update(
+  'main-profile',
+  'space-123',
+  { name: 'Personal Projects' }
+);
+
+// Update last used time
+await spacesController.update(
+  'main-profile',
+  'space-123',
+  { lastUsed: Date.now() }
+);
+```
+
+### Deleting Spaces
+
+#### delete()
+
+Delete a space permanently.
+
+```typescript
+public async delete(profileId: string, spaceId: string): Promise<boolean>
+```
+
+<Warning>
+  Deleting a space does not automatically delete its tabs. Handle tab cleanup separately.
+</Warning>
+
+**Example**:
+
+```typescript
+const deleted = await spacesController.delete('main-profile', 'space-123');
+if (deleted) {
+  console.log('Space deleted');
+}
+```
+
+## Last Used Tracking
+
+Spaces track when they were last accessed for smart sorting and restoration.
+
+#### setLastUsed()
+
+Update the last used timestamp for a space.
+
+```typescript
+public async setLastUsed(profileId: string, spaceId: string): Promise<boolean>
+```
+
+**Example**:
+
+```typescript
+// Mark space as active
+await spacesController.setLastUsed('main-profile', 'space-123');
+```
+
+#### getLastUsedFromProfile()
+
+Get the most recently used space in a profile.
+
+```typescript
+public async getLastUsedFromProfile(
+  profileId: string
+): Promise<SpaceDataWithId | null>
+```
+
+**Example**:
+
+```typescript
+const lastSpace = await spacesController.getLastUsedFromProfile('main-profile');
+if (lastSpace) {
+  console.log(`Last used space: ${lastSpace.name}`);
+}
+```
+
+#### getLastUsed()
+
+Get the most recently used space across all profiles.
+
+```typescript
+public async getLastUsed(): Promise<SpaceDataWithId | null>
+```
+
+**Example**:
+
+```typescript
+const lastSpace = await spacesController.getLastUsed();
+if (lastSpace) {
+  // Restore the last active space on startup
+  console.log(`Restoring space: ${lastSpace.name}`);
+}
+```
+
+## Space Ordering
+
+#### reorder()
+
+Reorder spaces in the UI by updating their order values.
+
+```typescript
+public async reorder(orderMap: SpaceOrderMap): Promise<boolean>
+```
+
+**SpaceOrderMap Type**:
+
+```typescript
+type SpaceOrderMap = {
+  profileId: string;
+  spaceId: string;
+  order: number;
+}[];
+```
+
+**Example**:
+
+```typescript
+// Reorder spaces
+const newOrder = [
+  { profileId: 'main', spaceId: 'space-1', order: 0 },
+  { profileId: 'main', spaceId: 'space-2', order: 1 },
+  { profileId: 'main', spaceId: 'space-3', order: 2 }
+];
+
+await spacesController.reorder(newOrder);
+```
+
+## Events
+
+The SpacesController extends `TypedEventEmitter` with these events:
+
+<ResponseField name="space-created" type="[profileId: string, spaceId: string, spaceData: SpaceData]">
+  Emitted when a new space is created
+</ResponseField>
+
+<ResponseField name="space-updated" type="[profileId: string, spaceId: string, updatedFields: Partial<SpaceData>]">
+  Emitted when a space is modified
+</ResponseField>
+
+<ResponseField name="space-deleted" type="[profileId: string, spaceId: string]">
+  Emitted when a space is deleted
+</ResponseField>
+
+<ResponseField name="requested-all-spaces-from-profile" type="[profileId: string]">
+  Emitted when all spaces from a profile are loaded into cache
+</ResponseField>
+
+**Example**:
+
+```typescript
+spacesController.on('space-created', (profileId, spaceId, spaceData) => {
+  console.log(`New space created: ${spaceData.name}`);
+  console.log(`Profile: ${profileId}, Space ID: ${spaceId}`);
+});
+
+spacesController.on('space-updated', (profileId, spaceId, updatedFields) => {
+  console.log(`Space ${spaceId} updated:`, updatedFields);
+});
+
+spacesController.on('space-deleted', (profileId, spaceId) => {
+  console.log(`Space ${spaceId} deleted from profile ${profileId}`);
+});
+```
+
+## Cache Management
+
+### hasRequestedAllSpaces()
+
+Check if all spaces from a profile are loaded in cache.
+
+```typescript
+public hasRequestedAllSpaces(profileId: string): boolean
+```
+
+**Example**:
+
+```typescript
+if (spacesController.hasRequestedAllSpaces('main-profile')) {
+  // All spaces are cached, no database query needed
+  const spaces = await spacesController.getAllFromProfile('main-profile');
+} else {
+  // First call will load from database and cache
+  const spaces = await spacesController.getAllFromProfile('main-profile');
+}
+```
+
+## Usage Patterns
+
+### Session Restoration
+
+```typescript
+// On app startup, restore last used space
+const lastSpace = await spacesController.getLastUsed();
+
+if (lastSpace) {
+  // Restore tabs in this space
+  const tabs = await tabsController.getTabsInSpace(lastSpace.id);
+  
+  // Activate the space in a window
+  tabsController.setCurrentWindowSpace(windowId, lastSpace.id);
+}
+```
+
+### Creating a New Workspace
+
+```typescript
+// Create space and switch to it
+const success = await spacesController.create(
+  currentProfileId,
+  'New Project'
+);
+
+if (success) {
+  // Get the newly created space
+  const spaces = await spacesController.getAllFromProfile(currentProfileId);
+  const newSpace = spaces[spaces.length - 1];
+  
+  // Mark as used
+  await spacesController.setLastUsed(currentProfileId, newSpace.id);
+  
+  // Switch to it
+  tabsController.setCurrentWindowSpace(windowId, newSpace.id);
+}
+```
+
+### Space Switcher UI
+
+```typescript
+// Get all spaces for switcher
+const spaces = await spacesController.getAllFromProfile(profileId);
+
+// Render space list sorted by order
+spaces.forEach(space => {
+  renderSpaceButton({
+    id: space.id,
+    name: space.name,
+    isActive: currentSpaceId === space.id,
+    onClick: () => switchToSpace(space.id)
+  });
+});
+
+function switchToSpace(spaceId: string) {
+  tabsController.setCurrentWindowSpace(windowId, spaceId);
+  spacesController.setLastUsed(profileId, spaceId);
+}
+```
+
+## Data Validation
+
+The controller uses Zod schemas for data validation:
+
+```typescript
+import { SpaceDataSchema } from '@/controllers/spaces-controller';
+
+// Validate space data
+const result = SpaceDataSchema.safeParse(spaceData);
+if (result.success) {
+  console.log('Valid space data');
+} else {
+  console.error('Invalid space data:', result.error);
+}
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Profiles Controller" icon="user" href="/api/controllers/profiles-controller">
+    Manage profiles that contain spaces
+  </Card>
+  <Card title="Tabs Controller" icon="window" href="/api/controllers/tabs-controller">
+    Manage tabs within spaces
+  </Card>
+  <Card title="Windows Controller" icon="browser" href="/api/controllers/windows-controller">
+    Window management for displaying spaces
+  </Card>
+</CardGroup>

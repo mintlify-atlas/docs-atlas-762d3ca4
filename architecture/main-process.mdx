@@ -1,0 +1,449 @@
+---
+title: Main Process
+description: Deep dive into Flow Browser's Node.js main process architecture
+---
+
+The **main process** is the Node.js environment that orchestrates Flow Browser's core functionality. It manages windows, tabs, sessions, and system integration.
+
+## Initialization Flow
+
+The application starts in `src/main/index.ts:1` with a carefully orchestrated initialization:
+
+```typescript
+// 1. Check single instance lock
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+}
+
+// 2. Set command-line switches
+app.commandLine.appendSwitch("--disable-features", "FedCm");
+
+// 3. Import main browser module
+import("@/browser");
+```
+
+**Source**: `src/main/index.ts:20`
+
+Once the lock is acquired, the browser module loads (`src/main/browser.ts:1`):
+
+<Steps>
+  <Step title="Load Controllers">
+    Import all controllers with dependency ordering
+    
+    `src/main/controllers/index.ts:1`
+  </Step>
+  
+  <Step title="Setup IPC Handlers">
+    Register all IPC message handlers
+    
+    `src/main/ipc/index.ts:1`
+  </Step>
+  
+  <Step title="Initialize Extensions">
+    Load Chrome extension support
+    
+    `src/main/modules/extensions/main.ts`
+  </Step>
+  
+  <Step title="Start Persistence">
+    Begin tab persistence flush interval
+    
+    `src/main/browser.ts:18`
+  </Step>
+  
+  <Step title="Create First Window">
+    Show onboarding or restore previous session
+    
+    `src/main/browser.ts:34`
+  </Step>
+</Steps>
+
+## Core Controllers
+
+Controllers are singleton classes managing specific domains. They use TypedEventEmitter for internal communication.
+
+### TabsController
+
+**Purpose**: Manages all tab instances, lifecycle, grouping, and state.
+
+**File**: `src/main/controllers/tabs-controller/index.ts:45`
+
+<Accordion title="Key Responsibilities">
+- **Tab Creation**: `createTab()` - Creates Tab instances with WebContentsView
+- **Tab Groups**: Manages glance and split view groups
+- **Active Tab Tracking**: Per window-space active tab mapping
+- **Lifecycle Management**: Sleep, archive, destroy operations
+- **Position Management**: Tab ordering within spaces
+</Accordion>
+
+```typescript
+class TabsController extends TypedEventEmitter<TabsControllerEvents> {
+  public tabs: Map<number, Tab>;
+  private tabManagers: Map<number, TabManagers>;
+  
+  // Per-tab managers
+  public getTabManagers(tabId: number): TabManagers | undefined;
+  
+  // Tab creation
+  public async createTab(
+    windowId?: number,
+    profileId?: string,
+    spaceId?: string,
+    webContentsViewOptions?: Electron.WebContentsViewConstructorOptions,
+    tabCreationOptions: Partial<TabCreationOptions> = {}
+  ): Promise<Tab>;
+}
+```
+
+**Key Maps**:
+- `tabs: Map<number, Tab>` - All active tabs indexed by ID
+- `windowActiveSpaceMap: Map<number, string>` - Current space per window
+- `spaceActiveTabMap: Map<WindowSpaceReference, Tab | TabGroup>` - Active tab/group per window-space
+- `tabGroups: Map<string, TabGroup>` - All tab groups (glance, split)
+
+<Note>
+Each Tab has three associated managers:
+- **TabLifecycleManager** - Sleep/wake, fullscreen, navigation state
+- **TabLayoutManager** - Show/hide, bounds calculation
+- **TabBoundsController** - Geometry and positioning
+
+See `src/main/controllers/tabs-controller/index.ts:243`
+</Note>
+
+### WindowsController
+
+**Purpose**: Manages all application windows and window types.
+
+**File**: `src/main/controllers/windows-controller/index.ts:22`
+
+```typescript
+class WindowsController extends TypedEventEmitter<WindowsControllerEvents> {
+  private windows: Map<number, BaseWindow>;
+  
+  // Window Type Managers
+  public settings: WindowTypeManager<typeof SettingsWindow>;
+  public onboarding: WindowTypeManager<typeof OnboardingWindow>;
+  public browser: WindowTypeManager<typeof BrowserWindow>;
+  public extensionPopup: WindowTypeManager<typeof ExtensionPopupWindow>;
+}
+```
+
+<Accordion title="Window Types">
+**BrowserWindow** (`src/main/controllers/windows-controller/types/browser.ts`)
+- Main browser windows with tabs
+- Includes WebContentsViews for web pages
+- Portal component windows for omnibox, popups
+- Custom window controls integration
+
+**SettingsWindow** (`src/main/controllers/windows-controller/types/settings.ts`)
+- Singleton settings/preferences window
+- Frameless with custom titlebar
+
+**OnboardingWindow** (`src/main/controllers/windows-controller/types/onboarding.ts`)
+- First-run onboarding wizard
+- Singleton, shown once per installation
+
+**ExtensionPopupWindow** (`src/main/controllers/windows-controller/types/extension-popup.ts`)
+- Extension popup windows
+- Managed by electron-chrome-extensions
+</Accordion>
+
+**Window Type Managers** provide:
+- Type-safe window creation
+- Singleton enforcement (settings, onboarding)
+- Lifecycle management
+- Type-specific configurations
+
+### SessionsController
+
+**Purpose**: Manages Electron sessions for different profiles.
+
+**File**: `src/main/controllers/sessions-controller/index.ts:10`
+
+```typescript
+class SessionsController {
+  private sessions: Map<string, Session>;
+  
+  // Get or create session for profile
+  public get(profileId: string): Session;
+  
+  // Default session readiness
+  public isDefaultSessionReady(): boolean;
+  public whenDefaultSessionReady(): Promise<void>;
+}
+```
+
+<Accordion title="Session Setup">
+When creating a profile session (`src/main/controllers/sessions-controller/index.ts:18`):
+
+1. **Create Session**: `session.fromPath(profilePath)`
+2. **Register Protocols**: `flow://`, `flow-external://`, `flow-internal://`
+3. **Setup Handlers**: Permission handlers, certificate validation
+4. **Register Preload**: Inject preload scripts to all WebContents
+5. **Intercept Rules**: User-agent transformer, CORS bypass, PDF viewer
+6. **Store Session**: Cache in sessions Map
+</Accordion>
+
+<Warning>
+**Default Session Setup**:
+
+The default Electron session requires special handling for extensions. It must be ready before creating any browser windows.
+
+See `src/main/controllers/sessions-controller/default-session/index.ts`
+</Warning>
+
+### SpacesController & ProfilesController
+
+**Purpose**: Manage workspaces and user profiles.
+
+**Files**: 
+- `src/main/controllers/spaces-controller/index.ts`
+- `src/main/controllers/profiles-controller/index.ts`
+
+<CodeGroup>
+```typescript Spaces
+class SpacesController {
+  // Get all spaces
+  public async getAll(): Promise<SpaceData[]>;
+  
+  // Get spaces for a profile
+  public async getFromProfile(profileId: string): Promise<SpaceData[]>;
+  
+  // Create new space
+  public async create(profileId: string, name: string): Promise<SpaceData>;
+  
+  // Update space properties
+  public async update(
+    profileId: string,
+    spaceId: string,
+    data: Partial<SpaceData>
+  ): Promise<void>;
+}
+```
+
+```typescript Profiles
+class ProfilesController {
+  // Get all profiles
+  public async getAll(): Promise<ProfileData[]>;
+  
+  // Create new profile
+  public async create(name: string): Promise<ProfileData>;
+  
+  // Update profile
+  public async update(
+    profileId: string,
+    data: Partial<ProfileData>
+  ): Promise<void>;
+  
+  // Get profile directory path
+  public getProfilePath(profileId: string): string;
+}
+```
+</CodeGroup>
+
+Profiles have isolated:
+- Session storage
+- Cookies
+- Cache
+- Extensions
+- Settings
+
+## Tab Management Deep Dive
+
+### Tab Class
+
+Each tab is an instance of the `Tab` class.
+
+**File**: `src/main/controllers/tabs-controller/tab.ts`
+
+```typescript
+class Tab extends TypedEventEmitter<TabEvents> {
+  public readonly id: number;
+  public readonly uniqueId: string;
+  public profileId: string;
+  public spaceId: string;
+  
+  // WebContents
+  public webContents: WebContents | null;
+  private _webContentsView: WebContentsView | null;
+  
+  // State
+  public visible: boolean;
+  public asleep: boolean;
+  public isPictureInPicture: boolean;
+  public fullScreen: boolean;
+  
+  // Navigation
+  public url: string;
+  public title: string;
+  public favicon: string | null;
+  public isLoading: boolean;
+  public canGoBack: boolean;
+  public canGoForward: boolean;
+}
+```
+
+**Key Features**:
+- **Sleep Mode**: Tabs can be put to sleep to save memory (`src/main/controllers/tabs-controller/tab-lifecycle.ts`)
+- **Archive**: Inactive tabs are archived after threshold
+- **Tab Groups**: Glance (stacked) and Split view groups
+- **State Persistence**: All state saved to SQLite
+
+### Tab Lifecycle
+
+<Steps>
+  <Step title="Creation">
+    `tabsController.createTab()` creates Tab instance with WebContentsView
+    
+    `src/main/controllers/tabs-controller/index.ts:146`
+  </Step>
+  
+  <Step title="Awake State">
+    Tab has active WebContentsView, receives events, renders in window
+  </Step>
+  
+  <Step title="Sleep (Optional)">
+    After inactivity threshold, destroy WebContentsView but keep state
+    
+    `src/main/controllers/tabs-controller/tab-lifecycle.ts`
+  </Step>
+  
+  <Step title="Wake (Optional)">
+    Recreate WebContentsView, restore navigation history
+  </Step>
+  
+  <Step title="Archive">
+    After longer inactivity, completely destroy tab (state persisted to DB)
+    
+    `src/main/controllers/tabs-controller/index.ts:102`
+  </Step>
+  
+  <Step title="Restoration">
+    Can restore archived tabs from persistence layer
+  </Step>
+</Steps>
+
+<Tip>
+Sleep/archive thresholds are configurable:
+- Sleep: After tab inactive for ~5 minutes
+- Archive: After tab invisible for ~30 minutes
+
+See `src/main/saving/tabs/index.ts`
+</Tip>
+
+## Data Persistence
+
+Flow uses SQLite for all persistent data.
+
+**Schema**: `src/main/saving/db/schema.ts`
+
+### Tab Persistence
+
+**Manager**: `tabPersistenceManager` (`src/main/saving/tabs/index.ts`)
+
+```typescript
+class TabPersistenceManager {
+  // Mark tab as dirty (needs saving)
+  public markDirty(uniqueId: string, data: PersistedTabData): void;
+  
+  // Mark tab as removed
+  public markRemoved(uniqueId: string): void;
+  
+  // Flush dirty tabs to database
+  private async flushDirtyTabs(): Promise<void>;
+  
+  // Start periodic flush (every ~2s)
+  public start(): void;
+}
+```
+
+**Flush Strategy**:
+1. Tabs marked dirty when state changes
+2. Every 2 seconds, dirty tabs written to SQLite
+3. On app quit, final flush before database close
+4. On restore, tabs loaded from database
+
+<Note>
+Recently closed tabs are tracked separately for "Reopen Closed Tab" functionality.
+
+See `src/main/saving/tabs/recently-closed.ts`
+</Note>
+
+## Extension System
+
+Flow supports Chrome extensions via **electron-chrome-extensions**.
+
+**File**: `src/main/modules/extensions/main.ts`
+
+<Accordion title="Extension Architecture">
+- Extensions loaded per profile (isolated between profiles)
+- Extension APIs provided by electron-chrome-extensions
+- Custom APIs can be added via extension handlers
+- Extensions stored in profile directory
+- Permissions managed through manifest parsing
+</Accordion>
+
+```typescript
+// Extension management
+import { extensionManagement } from '@/modules/extensions/management';
+
+// Enable/disable extension
+await extensionManagement.setEnabled(extensionId, enabled);
+
+// Uninstall extension
+await extensionManagement.uninstall(extensionId);
+```
+
+## Application Lifecycle
+
+Key lifecycle events managed in `src/main/app/lifecycle.ts`:
+
+<Accordion title="Lifecycle Events">
+**window-all-closed**
+- On macOS: Keep app running
+- On Windows/Linux: Quit app
+
+**before-quit**
+- Set `quitController.isQuitting = true`
+- Skip all IPC and persistence operations
+- Close database connection
+
+**activate** (macOS)
+- If no windows, create new browser window
+
+**second-instance**
+- Focus existing window
+- Process command-line URLs
+</Accordion>
+
+<Warning>
+**Critical**: During quit (`quitController.isQuitting`), all database operations and IPC handlers must short-circuit to prevent crashes from accessing closed database.
+
+See `src/main/controllers/quit-controller/index.ts`
+</Warning>
+
+## Module System
+
+Utility modules in `src/main/modules/`:
+
+| Module | Purpose |
+|--------|--------|
+| `extensions/` | Chrome extension support |
+| `favicons.ts` | Favicon fetching and caching |
+| `icons.ts` | App icon management |
+| `content-blocker.ts` | Ad/tracker blocking |
+| `user-agent.ts` | User-agent string handling |
+| `shortcuts.ts` | Keyboard shortcut management |
+| `logs.ts` | Logging infrastructure |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Renderer Process" icon="browser" href="/architecture/renderer-process">
+    Learn about the React UI layer
+  </Card>
+  <Card title="IPC Communication" icon="arrows-left-right" href="/architecture/ipc">
+    Understand main ↔ renderer messaging
+  </Card>
+</CardGroup>

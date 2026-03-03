@@ -1,0 +1,403 @@
+---
+title: Settings Reference
+description: Complete reference for all Flow Browser settings and configurations
+icon: sliders
+---
+
+## Accessing Settings
+
+Open Flow Browser settings using any of these methods:
+
+<CardGroup cols={3}>
+  <Card title="Keyboard Shortcut" icon="keyboard">
+    Press **Cmd + ,** (Mac) or **Ctrl + ,** (Windows/Linux)
+  </Card>
+  <Card title="Command Palette" icon="command">
+    Type "settings" in the command palette
+  </Card>
+  <Card title="Menu" icon="bars">
+    Click the menu icon and select Settings
+  </Card>
+</CardGroup>
+
+## Settings Interface
+
+The settings interface consists of two main components:
+
+- **Sidebar Navigation**: Browse settings categories
+- **Content Area**: View and modify settings for the selected category
+
+### Settings Categories
+
+Flow Browser organizes settings into the following sections:
+
+1. **General** - Core browser settings
+2. **Spaces** - Space management and customization
+3. **Profiles** - Profile configuration
+4. **Icon** - Browser icon customization
+5. **Shortcuts** - Keyboard shortcuts reference
+6. **External Apps** - External application integration
+7. **About** - Version information and credits
+
+## General Settings
+
+The General section contains most of the browser's core configuration options.
+
+### General Settings Card
+
+<ParamField path="Auto Update" type="boolean" default="true">
+  Enable automatic updates for Flow Browser.
+  
+  When enabled, Flow Browser will automatically download and install updates in the background. You'll be notified when an update requires a restart.
+  
+  **Recommended**: Keep enabled to receive the latest features and security updates.
+</ParamField>
+
+<ParamField path="Content Blocker" type="enum" default="disabled">
+  Built-in ad and tracker blocking functionality.
+  
+  **Options**:
+  - **Disabled**: No content blocking
+  - **Block Ads**: Block advertisements only
+  - **Block Ads & Trackers**: Block ads and tracking scripts
+  - **Block All**: Aggressive blocking including cookie notices and annoyances
+  
+  <Info>
+    Content blocking improves privacy and page load performance but may break some websites. Adjust the level if you experience issues.
+  </Info>
+</ParamField>
+
+<ParamField path="Set as Default Browser" type="action">
+  Make Flow Browser your system's default web browser.
+  
+  Click the button to open your system's default browser settings or automatically set Flow as default (platform-dependent).
+</ParamField>
+
+### Update Card
+
+Displays current version information and available updates:
+
+- Current version number
+- Update availability status
+- Download and install buttons for available updates
+- Update release notes and changelog
+
+<Tip>
+  The update card automatically checks for new versions and notifies you when updates are available.
+</Tip>
+
+### New Tab Mode Card
+
+<ParamField path="New Tab Mode" type="enum" default="omnibox">
+  Configure how new tabs open in Flow Browser.
+  
+  **Options**:
+  - **Command Palette**: New tabs open with the command palette focused, ready for immediate input
+  - **Page**: New tabs open with a traditional new tab page interface
+  
+  The command palette option is ideal for keyboard-driven workflows, while the page option provides a more visual starting point.
+</ParamField>
+
+### Sidebar Settings Card
+
+<ParamField path="Sidebar Side" type="enum" default="left">
+  Choose which side of the window displays the browser sidebar.
+  
+  **Options**:
+  - **Left**: Sidebar appears on the left (recommended)
+  - **Right**: Sidebar appears on the right (experimental)
+  
+  <Warning>
+    Right sidebar positioning is experimental and may have layout issues in certain scenarios.
+  </Warning>
+</ParamField>
+
+### Performance Settings Card
+
+<ParamField path="Archive Tab After" type="enum" default="12h">
+  Automatically archive tabs that haven't been accessed for a specified duration.
+  
+  **Options**:
+  - 12 Hours
+  - 24 Hours
+  - 7 Days
+  - 30 Days
+  - Never (disable archiving)
+  
+  Archived tabs are removed from your active tab list but can be restored from the archive.
+</ParamField>
+
+<ParamField path="Sleep Tab After" type="enum" default="never">
+  Automatically unload inactive tabs from memory after a specified period.
+  
+  **Options**:
+  - 5 Minutes
+  - 10 Minutes
+  - 30 Minutes
+  - 1 Hour
+  - 2 Hours
+  - 4 Hours
+  - 8 Hours
+  - 12 Hours
+  - 24 Hours
+  - Never (disable tab sleeping)
+  
+  Sleeping tabs save memory without closing them. They reload automatically when you switch back.
+  
+  <Info>
+    Enable tab sleeping if you keep many tabs open or have limited system memory.
+  </Info>
+</ParamField>
+
+### Onboarding Card
+
+<ParamField path="Reset Onboarding" type="action">
+  Restart the Flow Browser onboarding wizard.
+  
+  Click this button to go through the initial setup process again. This does not delete your existing data, spaces, or settings.
+  
+  Useful if you want to reconfigure your initial preferences or show Flow Browser to someone new.
+</ParamField>
+
+### Experimental Settings Card
+
+<Warning>
+  Experimental features may be unstable or incomplete. Use with caution.
+</Warning>
+
+<ParamField path="Enable Flow PDF Viewer" type="boolean" default="false">
+  Use Flow Browser's built-in PDF viewer instead of the system default.
+  
+  **Status**: Experimental
+  
+  The Flow PDF viewer provides integrated PDF viewing within the browser with enhanced privacy and performance.
+</ParamField>
+
+### Advanced Settings Card
+
+<Warning>
+  Advanced settings are for power users. Changing these settings may affect browser stability or compatibility. Some settings require a restart.
+</Warning>
+
+<ParamField path="Enable MV2 Extensions" type="boolean" default="false">
+  Re-enable support for Manifest V2 browser extensions.
+  
+  **Status**: Unstable
+  
+  Manifest V2 is deprecated in favor of Manifest V3. Enabling this allows you to use older extensions but may cause compatibility or security issues.
+  
+  <Info>
+    Most modern extensions have been updated to Manifest V3. Only enable this if you specifically need an older extension.
+  </Info>
+</ParamField>
+
+## Spaces Settings
+
+Manage all your browsing spaces in one place.
+
+### Space Management
+
+The Spaces section displays all your created spaces as cards showing:
+
+- Space name
+- Space icon
+- Color theme preview
+- Number of open tabs (if active)
+- Edit and delete buttons
+
+### Creating Spaces
+
+See the [Customization Guide](/guides/customization#creating-a-new-space) for detailed instructions on creating new spaces.
+
+### Editing Spaces
+
+Click the **Edit** button on any space card to modify:
+
+- Space name
+- Space icon
+- Color theme
+- Associated profile
+
+### Deleting Spaces
+
+Click the **Delete** button to remove a space. You'll be asked to confirm the deletion.
+
+<Warning>
+  Deleting a space closes all tabs within that space. Ensure you've saved any important work before deleting.
+</Warning>
+
+## Profiles Settings
+
+Profiles determine data isolation between spaces:
+
+- Cookies and sessions
+- Cache and storage
+- Installed extensions
+- Saved passwords
+- Browsing history
+
+### Managing Profiles
+
+- View all available profiles
+- Create new profiles for different contexts
+- Assign profiles to spaces
+- Delete unused profiles
+
+<Info>
+  Multiple spaces can share the same profile if you want to maintain logged-in sessions across different browsing contexts.
+</Info>
+
+## Icon Settings
+
+Customize Flow Browser's application icon.
+
+### Available Icons
+
+The Icon settings page displays:
+
+- Grid of all available icon designs
+- Icon name and artist credit for each option
+- Current selection indicator
+- Platform compatibility status
+
+### Selecting an Icon
+
+Click on any icon to apply it immediately. The change affects:
+
+- Application icon in taskbar/dock
+- Window icon
+- System notifications
+- About page
+
+<Tip>
+  Icon changes take effect immediately without requiring a restart.
+</Tip>
+
+## Shortcuts Settings
+
+View all available keyboard shortcuts in Flow Browser.
+
+The Shortcuts section provides a comprehensive reference of:
+
+- Navigation shortcuts
+- Tab management shortcuts
+- Window management shortcuts
+- Command palette shortcuts
+- Settings shortcuts
+- Developer shortcuts
+
+For a complete list, see the [Keyboard Shortcuts Reference](/features/keyboard-shortcuts).
+
+<Note>
+  Custom keyboard shortcut mapping is planned for a future release. Currently, shortcuts are view-only.
+</Note>
+
+## External Apps Settings
+
+Configure how Flow Browser integrates with external applications:
+
+- Default handlers for specific protocols
+- External link behavior
+- File download applications
+- Integration with system apps
+
+<Info>
+  External app configuration varies by operating system and available applications.
+</Info>
+
+## About Settings
+
+View information about your Flow Browser installation:
+
+<AccordionGroup>
+  <Accordion title="Version Information" icon="info-circle">
+    - Current Flow Browser version
+    - Electron version
+    - Chrome version
+    - Node.js version
+    - Operating system details
+  </Accordion>
+
+  <Accordion title="Credits" icon="heart">
+    - Development team
+    - Contributors
+    - Open source libraries
+    - Icon designers
+  </Accordion>
+
+  <Accordion title="License" icon="file-contract">
+    - License information
+    - Terms of use
+    - Privacy policy link
+  </Accordion>
+
+  <Accordion title="Support" icon="life-ring">
+    - Documentation links
+    - Community resources
+    - Bug reporting
+    - Feature requests
+  </Accordion>
+</AccordionGroup>
+
+## Settings Data
+
+All settings are stored locally on your device in:
+
+- SQLite database (via Drizzle ORM)
+- Electron store for system-level preferences
+- No cloud sync or external servers
+
+<Info>
+  Your settings are completely private and never leave your device.
+</Info>
+
+## Resetting Settings
+
+To reset Flow Browser to default settings:
+
+1. Close Flow Browser completely
+2. Navigate to your application data directory
+3. Delete or rename the Flow Browser data folder
+4. Restart Flow Browser
+
+<Warning>
+  Resetting settings will delete all your spaces, profiles, and preferences. This action cannot be undone. Consider backing up your data first.
+</Warning>
+
+## Importing and Exporting
+
+<Note>
+  Settings import/export functionality is under development and will be available in a future update. This will allow you to:
+  
+  - Backup your complete Flow Browser configuration
+  - Share settings across devices
+  - Migrate settings to a new installation
+</Note>
+
+## Keyboard Shortcuts
+
+Quick access to settings:
+
+| Action | Shortcut |
+|--------|----------|
+| Open Settings | Cmd/Ctrl + , |
+| Close Settings | Esc |
+| Navigate Sections | ↑ ↓ |
+| Search Settings | Cmd/Ctrl + F |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Customization Guide" icon="palette" href="/guides/customization">
+    Learn how to personalize Flow Browser
+  </Card>
+  <Card title="Privacy Features" icon="shield" href="/features/privacy">
+    Understand Flow Browser's privacy protections
+  </Card>
+  <Card title="Keyboard Shortcuts" icon="keyboard" href="/features/keyboard-shortcuts">
+    Master all keyboard shortcuts
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="/troubleshooting/common-issues">
+    Solve common issues
+  </Card>
+</CardGroup>

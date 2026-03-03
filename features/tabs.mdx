@@ -1,0 +1,383 @@
+---
+title: Tabs
+description: Advanced tab management with sleeping tabs, navigation history, and lifecycle control
+icon: browser
+---
+
+Flow Browser implements a sophisticated tab system with features like sleeping tabs to save memory, navigation history restoration, and intelligent lifecycle management.
+
+## Tab Architecture
+
+Tabs in Flow Browser are managed by the `Tab` class at `src/main/controllers/tabs-controller/tab.ts:137`. Each tab has:
+
+<CardGroup cols={2}>
+  <Card title="Stable Identity" icon="fingerprint">
+    Counter-based IDs that persist across sleep/wake cycles
+  </Card>
+  <Card title="WebContents View" icon="window">
+    Chromium rendering context (nullable when sleeping)
+  </Card>
+  <Card title="Navigation History" icon="clock-rotate-left">
+    Full session history with restoration support
+  </Card>
+  <Card title="State Management" icon="list-check">
+    Loading, audio, fullscreen, and PiP states
+  </Card>
+</CardGroup>
+
+## Tab Data Structure
+
+### Persisted Data
+
+Tab data saved to disk includes:
+
+```typescript
+interface PersistedTabData {
+  schemaVersion: number;
+  uniqueId: string;           // Persistent unique identifier
+  createdAt: number;
+  lastActiveAt: number;
+  position: number;
+  
+  profileId: string;          // Parent profile
+  spaceId: string;            // Parent space
+  windowGroupId: string;      // Logical window grouping
+  
+  title: string;
+  url: string;
+  faviconURL: string | null;
+  muted: boolean;
+  
+  navHistory: NavigationEntry[];   // Navigation history
+  navHistoryIndex: number;         // Current position
+}
+```
+
+### Runtime Data
+
+Data sent to the renderer includes runtime state:
+
+```typescript
+interface TabData extends Omit<PersistedTabData, 'navHistory' | 'navHistoryIndex'> {
+  id: number;                 // Stable counter-based ID
+  windowId: number;           // Current Electron window ID
+  isLoading: boolean;
+  audible: boolean;
+  fullScreen: boolean;
+  isPictureInPicture: boolean;
+  asleep: boolean;
+}
+```
+
+<Note>
+  Navigation history is omitted from runtime data to avoid serializing large arrays on every state update, improving performance.
+</Note>
+
+## Sleeping Tabs
+
+Sleeping tabs is a memory-saving feature that destroys the WebContentsView while preserving tab state.
+
+### How Sleeping Works
+
+<Steps>
+  <Step title="Tab Becomes Inactive">
+    When a tab hasn't been active for a while, it becomes eligible for sleep
+  </Step>
+  
+  <Step title="State Preservation">
+    Navigation history, title, URL, and favicon are saved
+  </Step>
+  
+  <Step title="WebContents Destroyed">
+    The WebContentsView is destroyed, freeing 20-50MB of RAM per tab
+  </Step>
+  
+  <Step title="Tab Appears Normal">
+    The tab still appears in the UI with its title and favicon
+  </Step>
+</Steps>
+
+### Waking Tabs
+
+When you switch to a sleeping tab:
+
+```typescript
+// From src/main/controllers/tabs-controller/tab.ts:307
+public initializeView(): void {
+  if (this.view) return; // Already initialized
+  
+  const webContentsView = createWebContentsView(this.session, this._webContentsViewOptions);
+  const webContents = webContentsView.webContents;
+  
+  this.view = webContentsView;
+  this.webContents = webContents;
+  
+  // Restore navigation history
+  this.restoreNavigationHistory(this.navHistory, this.navHistoryIndex);
+}
+```
+
+The tab is recreated with:
+- Fresh WebContentsView
+- Restored navigation history
+- Re-initialized event listeners
+- Re-registered with extensions
+
+### Sleep Configuration
+
+The sleep system checks tabs periodically:
+
+```typescript
+const ARCHIVE_CHECK_INTERVAL_MS = 10 * 1000; // Every 10 seconds
+```
+
+From `src/main/controllers/tabs-controller/index.ts:23`.
+
+## Tab State Updates
+
+Tabs use an intelligent state update system that coalesces rapid events:
+
+```typescript
+// From src/main/controllers/tabs-controller/tab.ts:544
+public scheduleUpdateTabState() {
+  if (this._updatePending) return;
+  this._updatePending = true;
+  queueMicrotask(() => {
+    this._updatePending = false;
+    this.updateTabState();
+  });
+}
+```
+
+This batches multiple WebContents events (page load, title update, navigation) into a single state update per event loop tick, dramatically improving performance.
+
+## Navigation History
+
+Tabs maintain complete navigation history that survives sleep/wake cycles:
+
+```typescript
+interface NavigationEntry {
+  title: string;
+  url: string;
+}
+```
+
+### Smart History Comparison
+
+Instead of using `JSON.stringify()` on every update, Flow uses a fast-path comparison:
+
+```typescript
+const lengthChanged = newNavHistory.length !== this.lastNavHistoryLength;
+const indexChanged = newNavHistoryIndex !== this.lastNavHistoryIndex;
+
+if (!lengthChanged && !indexChanged) {
+  // Check if active entry changed (e.g., replaceState)
+  const oldActiveEntry = this.navHistory[this.navHistoryIndex];
+  const newActiveEntry = newNavHistory[newNavHistoryIndex];
+  
+  activeEntryChanged = 
+    (oldActiveEntry?.url ?? '') !== (newActiveEntry?.url ?? '') ||
+    (oldActiveEntry?.title ?? '') !== (newActiveEntry?.title ?? '');
+}
+```
+
+From `src/main/controllers/tabs-controller/tab.ts:596-626`.
+
+## Tab Events
+
+The Tab class emits events that other systems listen to:
+
+```typescript
+type TabEvents = {
+  'space-changed': [];
+  'window-changed': [oldWindowId: number];
+  'fullscreen-changed': [boolean];
+  'new-tab-requested': [url, disposition, options, details];
+  'focused': [];
+  'updated': [TabPublicProperty[]];
+  'destroyed': [];
+}
+```
+
+These events drive:
+- Tab persistence to disk
+- UI updates in the renderer
+- Extension notifications
+- Tab lifecycle management
+
+## Window Open Handling
+
+Tabs handle window.open() and links with `target="_blank"`:
+
+```typescript
+webContents.setWindowOpenHandler((handlerDetails) => {
+  switch (handlerDetails.disposition) {
+    case 'foreground-tab':
+    case 'background-tab':
+    case 'new-window': {
+      return {
+        action: 'allow',
+        outlivesOpener: true,
+        createWindow: (constructorOptions) => {
+          this.emit('new-tab-requested', 
+            handlerDetails.url,
+            handlerDetails.disposition,
+            constructorOptions,
+            handlerDetails
+          );
+          return this._lastCreatedWebContents!;
+        }
+      };
+    }
+  }
+});
+```
+
+From `src/main/controllers/tabs-controller/tab.ts:487-518`.
+
+## Tab Shortcuts
+
+Flow Browser provides keyboard shortcuts for tab management:
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd/Ctrl + T` | New Tab |
+| `Cmd/Ctrl + W` | Close Tab |
+| `Cmd/Ctrl + R` | Reload |
+| `Cmd/Ctrl + Shift + R` | Force Reload |
+| `Cmd/Ctrl + Shift + C` | Copy URL |
+| `F12` | Toggle DevTools |
+
+From `src/main/modules/shortcuts.ts:5-43`.
+
+## Background Color
+
+Tabs apply different background colors based on the URL protocol:
+
+```typescript
+private static readonly WHITELISTED_PROTOCOLS = ['flow-internal:', 'flow:'];
+private static readonly COLOR_TRANSPARENT = '#00000000';
+private static readonly COLOR_BACKGROUND = '#ffffffff';
+
+public applyUrlBackground(): void {
+  if (!this.url || !this.view) return;
+  const url = URL.parse(this.url);
+  if (url && Tab.WHITELISTED_PROTOCOLS.includes(url.protocol)) {
+    this.view.setBackgroundColor(Tab.COLOR_TRANSPARENT);
+  } else {
+    this.view.setBackgroundColor(Tab.COLOR_BACKGROUND);
+  }
+}
+```
+
+Internal pages get transparent backgrounds, while web pages get opaque white.
+
+From `src/main/controllers/tabs-controller/tab.ts:366-383`.
+
+## Error Handling
+
+When pages fail to load, tabs show a custom error page:
+
+```typescript
+webContents.on('did-fail-load', (event, errorCode, _errorDescription, validatedURL, isMainFrame) => {
+  event.preventDefault();
+  // Skip aborted operations (user navigation cancellations)
+  if (isMainFrame && errorCode !== -3) {
+    this.loadErrorPage(errorCode, validatedURL);
+  }
+});
+```
+
+The error page displays at `flow://error` with URL parameters for error details.
+
+## Favicon Caching
+
+Favicons are cached when pages update them:
+
+```typescript
+webContents.on('page-favicon-updated', (_event, favicons) => {
+  const faviconURL = favicons[0];
+  const url = webContents.getURL();
+  if (faviconURL && url) {
+    cacheFavicon(url, faviconURL, this.session);
+  }
+  if (faviconURL && faviconURL !== this.faviconURL) {
+    this.updateStateProperty('faviconURL', faviconURL);
+  }
+});
+```
+
+From `src/main/controllers/tabs-controller/tab.ts:431-440`.
+
+## Audio Controls
+
+Tabs track audio state and support muting:
+
+```typescript
+// Mute state persists across sleep/wake
+if (this.muted) {
+  webContents.setAudioMuted(true);
+}
+
+// Audio state is monitored
+const newAudible = webContents.isCurrentlyAudible();
+const newMuted = webContents.isAudioMuted();
+```
+
+## Zoom Controls
+
+Tabs set zoom level limits:
+
+```typescript
+webContents.on('did-finish-load', () => {
+  webContents.setVisualZoomLevelLimits(1, 5);
+});
+```
+
+This allows 1x to 5x zoom range.
+
+## Tab Groups
+
+Tabs can be organized into groups for features like:
+
+- **Glance Mode**: Stack tabs with quick switching
+- **Split View**: Display multiple tabs simultaneously
+- **Normal Groups**: Visual grouping (synthetic, not persisted)
+
+Tab groups are managed by the TabsController at `src/main/controllers/tabs-controller/index.ts`.
+
+## Tab Lifecycle Managers
+
+Each tab has dedicated managers:
+
+- **TabLifecycleManager**: Handles sleep/wake, fullscreen, PiP
+- **TabLayoutManager**: Manages view bounds and positioning
+- **TabBoundsController**: Calculates correct tab bounds
+
+These are stored alongside each tab and orchestrated by the TabsController.
+
+## Performance Optimizations
+
+<CardGroup cols={2}>
+  <Card title="Event Coalescing" icon="bolt">
+    Multiple WebContents events batched into single state updates
+  </Card>
+  
+  <Card title="Smart History Diffs" icon="code-compare">
+    Fast-path length/index comparison before deep equality checks
+  </Card>
+  
+  <Card title="Lazy View Creation" icon="clock">
+    Views created only when tabs are active, destroyed when sleeping
+  </Card>
+  
+  <Card title="Cached Favicon Data" icon="images">
+    Favicons cached to avoid repeated network requests
+  </Card>
+</CardGroup>
+
+## Related Features
+
+- [Spaces](/features/spaces) - Tabs are organized within Spaces
+- [Shortcuts](/features/shortcuts) - Keyboard shortcuts for tab operations
+- [Extensions](/features/extensions) - Extensions interact with tabs

@@ -1,0 +1,448 @@
+---
+title: 'WindowsController'
+description: 'Manages browser windows, settings windows, and extension popups'
+---
+
+## Overview
+
+The `WindowsController` is responsible for creating, tracking, and managing all types of windows in Flow Browser. It uses specialized type managers to handle different window types with type-safe APIs.
+
+<Info>
+  **Import**: `import { windowsController } from '@/controllers/windows-controller'`
+  
+  The controller is a singleton instance exported as `windowsController`.
+</Info>
+
+## Window Types
+
+Flow Browser supports four window types, each with its own manager:
+
+<CardGroup cols={2}>
+  <Card title="Browser" icon="browser">
+    Main browsing windows (normal and popup)
+  </Card>
+  <Card title="Settings" icon="gear">
+    Settings/preferences window (singleton)
+  </Card>
+  <Card title="Onboarding" icon="rocket">
+    First-run onboarding wizard (singleton)
+  </Card>
+  <Card title="Extension Popup" icon="puzzle-piece">
+    Extension popup windows
+  </Card>
+</CardGroup>
+
+## Type Managers
+
+Each window type has a dedicated `WindowTypeManager` that provides type-safe methods:
+
+```typescript
+class WindowsController {
+  public browser: WindowTypeManager<typeof BrowserWindow>;
+  public settings: WindowTypeManager<typeof SettingsWindow>;
+  public onboarding: WindowTypeManager<typeof OnboardingWindow>;
+  public extensionPopup: WindowTypeManager<typeof ExtensionPopupWindow>;
+}
+```
+
+### Browser Windows
+
+The browser type manager handles both normal and popup browser windows.
+
+#### Create a Browser Window
+
+```typescript
+// Create a normal browser window
+const browserWindow = windowsController.browser.new('normal');
+
+// Create a popup window
+const popupWindow = windowsController.browser.new('popup', {
+  width: 800,
+  height: 600,
+  x: 100,
+  y: 100
+});
+```
+
+#### Get Browser Windows
+
+```typescript
+// Get all browser windows
+const allBrowserWindows = windowsController.browser.getAll();
+
+// Get focused browser window
+const focusedBrowser = windowsController.browser.getFocused();
+
+// Get browser window by ID
+const browserById = windowsController.browser.getById(windowId);
+
+// Get browser window from WebContents
+const browserFromWC = windowsController.browser.getFromWebContents(webContents);
+```
+
+### Settings Window
+
+Settings is a **singleton** window - only one can be open at a time.
+
+```typescript
+// Get existing settings window or create new one
+const settingsWindow = windowsController.settings.getSingletonWindow();
+
+// Check if settings window exists
+const existingSettings = windowsController.settings.getExistingSingletonWindow();
+if (!existingSettings) {
+  console.log('Settings window is not open');
+}
+```
+
+### Onboarding Window
+
+Onboarding is also a **singleton** window shown on first launch.
+
+```typescript
+// Show onboarding window
+const onboardingWindow = windowsController.onboarding.getSingletonWindow();
+
+// Check if onboarding is active
+const isOnboarding = windowsController.onboarding.getExistingSingletonWindow() !== null;
+```
+
+### Extension Popup Windows
+
+Extension popups are created when users click extension icons.
+
+```typescript
+// Create extension popup (typically handled internally)
+const popup = windowsController.extensionPopup.new(extensionId, popupUrl);
+
+// Get all extension popups
+const allPopups = windowsController.extensionPopup.getAll();
+```
+
+## Core Methods
+
+### Window Retrieval
+
+#### getFocused()
+
+Get the currently focused window of any type.
+
+```typescript
+public getFocused(): BaseWindow | null
+```
+
+**Example**:
+
+```typescript
+const focusedWindow = windowsController.getFocused();
+if (focusedWindow) {
+  console.log(`Focused window type: ${focusedWindow.type}`);
+  console.log(`Focused window ID: ${focusedWindow.id}`);
+}
+```
+
+#### getWindowById()
+
+Retrieve any window by its numeric ID.
+
+```typescript
+public getWindowById(id: number): BaseWindow | null
+```
+
+#### getWindowFromWebContents()
+
+Find the window containing a specific WebContents.
+
+```typescript
+public getWindowFromWebContents(webContents: WebContents): BaseWindow | null
+```
+
+**Example**:
+
+```typescript
+// In an IPC handler
+ipcMain.handle('some-action', (event) => {
+  const window = windowsController.getWindowFromWebContents(event.sender);
+  if (window) {
+    console.log(`Request from window ${window.id}`);
+  }
+});
+```
+
+#### getAllWindows()
+
+Get all windows of all types.
+
+```typescript
+public getAllWindows(): BaseWindow[]
+```
+
+**Example**:
+
+```typescript
+const allWindows = windowsController.getAllWindows();
+console.log(`Total windows open: ${allWindows.length}`);
+
+allWindows.forEach(window => {
+  console.log(`${window.type} window (ID: ${window.id})`);
+});
+```
+
+## WindowTypeManager API
+
+Each type manager provides these methods:
+
+### Standard Methods
+
+<ParamField path="new()" type="Method">
+  Create a new window instance
+  ```typescript
+  public new(...args: ConstructorParameters<C>): InstanceType<C>
+  ```
+  **Note**: Throws error if window type is a singleton.
+</ParamField>
+
+<ParamField path="getAll()" type="Method">
+  Get all windows of this type
+  ```typescript
+  public getAll(): InstanceType<C>[]
+  ```
+</ParamField>
+
+<ParamField path="getFocused()" type="Method">
+  Get focused window of this type (or null)
+  ```typescript
+  public getFocused(): InstanceType<C> | null
+  ```
+</ParamField>
+
+<ParamField path="getById()" type="Method">
+  Get window of this type by ID
+  ```typescript
+  public getById(id: number): InstanceType<C> | null
+  ```
+</ParamField>
+
+<ParamField path="getFromWebContents()" type="Method">
+  Get window of this type from WebContents
+  ```typescript
+  public getFromWebContents(webContents: WebContents): InstanceType<C> | null
+  ```
+</ParamField>
+
+### Singleton Methods
+
+Available only for singleton window types (settings, onboarding):
+
+<ParamField path="getSingletonWindow()" type="Method">
+  Get existing singleton or create new one
+  ```typescript
+  public getSingletonWindow(...args: ConstructorParameters<C>): InstanceType<C>
+  ```
+</ParamField>
+
+<ParamField path="getExistingSingletonWindow()" type="Method">
+  Get existing singleton (returns null if not open)
+  ```typescript
+  public getExistingSingletonWindow(): InstanceType<C> | null
+  ```
+</ParamField>
+
+## Events
+
+The WindowsController extends `TypedEventEmitter` with these events:
+
+<ResponseField name="window-added" type="[id: number, window: BaseWindow]">
+  Emitted when a new window is created
+</ResponseField>
+
+<ResponseField name="window-removed" type="[id: number, window: BaseWindow]">
+  Emitted when a window is destroyed
+</ResponseField>
+
+<ResponseField name="window-focused" type="[id: number, window: BaseWindow]">
+  Emitted when a window gains focus
+</ResponseField>
+
+**Example**:
+
+```typescript
+windowsController.on('window-added', (id, window) => {
+  console.log(`New ${window.type} window created: ${id}`);
+});
+
+windowsController.on('window-removed', (id, window) => {
+  console.log(`Window ${id} closed`);
+});
+
+windowsController.on('window-focused', (id, window) => {
+  console.log(`Window ${id} focused`);
+});
+```
+
+## BrowserWindow Specifics
+
+The `BrowserWindow` class (not to be confused with Electron's BrowserWindow) provides additional browser-specific functionality:
+
+### Properties
+
+```typescript
+class BrowserWindow extends BaseWindow {
+  public browserWindowType: 'normal' | 'popup';
+  public viewManager: ViewManager;
+  public coreWebContents: WebContents[];
+  public omnibox: Omnibox;
+}
+```
+
+### Browser Window Events
+
+<ResponseField name="page-bounds-changed" type="[bounds: PageBounds]">
+  Emitted when the page content area changes size
+</ResponseField>
+
+<ResponseField name="current-space-changed" type="[spaceId: string]">
+  Emitted when the window switches spaces
+</ResponseField>
+
+<ResponseField name="enter-full-screen" type="[]">
+  Emitted when entering fullscreen mode
+</ResponseField>
+
+<ResponseField name="leave-full-screen" type="[]">
+  Emitted when exiting fullscreen mode
+</ResponseField>
+
+### ViewManager
+
+The `ViewManager` handles WebContentsView management for tabs:
+
+```typescript
+const browserWindow = windowsController.browser.getFocused();
+if (browserWindow) {
+  // ViewManager automatically handles adding/removing tab views
+  const viewManager = browserWindow.viewManager;
+  
+  // Views are managed by TabsController, but can be accessed here
+}
+```
+
+### Omnibox
+
+The `Omnibox` manages the address bar/search functionality:
+
+```typescript
+const browserWindow = windowsController.browser.getFocused();
+if (browserWindow) {
+  const omnibox = browserWindow.omnibox;
+  // Omnibox methods available here
+}
+```
+
+## Advanced Usage
+
+### Type Checking
+
+Use `isInstanceOf()` to check window types:
+
+```typescript
+const window = windowsController.getFocused();
+
+if (windowsController.browser.isInstanceOf(window)) {
+  // TypeScript knows this is a BrowserWindow
+  console.log(window.browserWindowType);
+}
+
+if (windowsController.settings.isInstanceOf(window)) {
+  // TypeScript knows this is a SettingsWindow
+  console.log('Settings window is focused');
+}
+```
+
+### Filtering Windows
+
+```typescript
+const window = windowsController.getWindowById(someId);
+
+// Returns BrowserWindow or null
+const browserWindow = windowsController.browser.filterInstance(window);
+
+if (browserWindow) {
+  // Safe to use as BrowserWindow
+  console.log(browserWindow.viewManager);
+}
+```
+
+### Creating Browser Windows with Options
+
+```typescript
+import { browserWindowsController } from '@/controllers/windows-controller/interfaces/browser';
+
+// The browser interface provides convenient access
+const window = browserWindowsController.create('normal', {
+  width: 1920,
+  height: 1080,
+  x: 0,
+  y: 0
+});
+
+// Or use instantCreate for immediate creation
+const popupWindow = browserWindowsController.instantCreate('popup', {
+  width: 600,
+  height: 400
+});
+```
+
+## Window Lifecycle
+
+### Creation Flow
+
+1. Call `manager.new()` or `manager.getSingletonWindow()`
+2. Window constructor creates Electron BrowserWindow
+3. Window is added to controller via `_addWindow()`
+4. `window-added` event is emitted
+5. Window loads appropriate UI
+6. Window is shown after load (if configured)
+
+### Destruction Flow
+
+1. Window's `destroy()` method is called
+2. Electron BrowserWindow is closed
+3. `destroyed` event is emitted on window
+4. Controller removes window via `_removeWindow()`
+5. `window-removed` event is emitted
+
+## Best Practices
+
+<Warning>
+  **Don't call `_addWindow()` or `_removeWindow()` directly**. These are internal methods used by window type managers.
+</Warning>
+
+<Tip>
+  Use type managers instead of direct window creation to maintain type safety and proper lifecycle management.
+</Tip>
+
+```typescript
+// Good
+const window = windowsController.browser.new('normal');
+
+// Bad - loses type safety and lifecycle tracking
+const window = new BrowserWindow('normal');
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Tabs Controller" icon="window" href="/api/controllers/tabs-controller">
+    Manage tabs within browser windows
+  </Card>
+  <Card title="Spaces Controller" icon="layer-group" href="/api/controllers/spaces-controller">
+    Space management for organizing tabs
+  </Card>
+  <Card title="Window API" icon="browser" href="/api/window">
+    Window class implementation
+  </Card>
+  <Card title="Browser API" icon="browser" href="/api/browser">
+    Browser controller implementation
+  </Card>
+</CardGroup>

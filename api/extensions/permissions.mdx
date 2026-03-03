@@ -1,0 +1,499 @@
+---
+title: Permission Warnings
+description: Convert Chrome extension manifest permissions into user-facing warning messages
+---
+
+## Overview
+
+The Permission Warnings API converts Chrome extension manifest permissions into human-readable warning messages. It implements Chromium's permission warning logic to help users understand the security implications of installing extensions.
+
+<Note>
+This implementation is derived from Chromium's source code:
+- Rules logic: `chrome/common/extensions/permissions/chrome_permission_message_rules.cc`
+- Message strings: `chrome/app/generated_resources.grd`
+</Note>
+
+## Why Permission Warnings Matter
+
+When users install browser extensions, they need to understand what capabilities they're granting. Permission warnings:
+
+- **Inform users** about data access and browser capabilities
+- **Prevent malicious extensions** from gaining access without user awareness
+- **Follow Chrome's precedence rules** for permission message priority
+- **Group related permissions** to avoid overwhelming users with too many warnings
+
+## API Reference
+
+### `getPermissionWarnings()`
+
+Processes manifest permissions and generates user-facing warning messages.
+
+```typescript
+function getPermissionWarnings(
+  manifestPermissions: string[],
+  hostPermissions?: string[]
+): string[]
+```
+
+#### Parameters
+
+- `manifestPermissions` (string[]): Array of permission strings from `manifest.json`
+  - Examples: `["tabs", "storage", "history", "bookmarks"]`
+- `hostPermissions` (string[], optional): Array of host permission strings
+  - Examples: `["<all_urls>", "https://*.google.com/*"]`
+
+#### Returns
+
+- `string[]`: Array of user-facing warning messages
+
+See: [modules/extensions/permission-warnings.ts:597](https://github.com/flow-browser/flow/blob/main/src/main/modules/extensions/permission-warnings.ts#L597)
+
+## Usage Examples
+
+### Basic Permission Warnings
+
+```typescript
+import { getPermissionWarnings } from "@/modules/extensions/permission-warnings";
+
+// Extension with common permissions
+const manifestPermissions = ["tabs", "storage", "history"];
+const warnings = getPermissionWarnings(manifestPermissions);
+
+console.log(warnings);
+// Output:
+// [
+//   "Read your Browse history"
+// ]
+```
+
+### All Sites Permission
+
+```typescript
+const manifestPermissions = ["tabs", "storage"];
+const hostPermissions = ["<all_urls>"];
+
+const warnings = getPermissionWarnings(
+  manifestPermissions,
+  hostPermissions
+);
+
+console.log(warnings);
+// Output:
+// [
+//   "Read and change all your data on all websites"
+// ]
+```
+
+<Warning>
+The `<all_urls>` permission is one of the most powerful permissions. It allows extensions to:
+- Read and modify content on any website
+- Intercept network requests
+- Access sensitive user data
+
+Always carefully review extensions requesting this permission.
+</Warning>
+
+### Specific Host Permissions
+
+```typescript
+const manifestPerms = ["tabs", "activeTab", "scripting"];
+const hostPerms = [
+  "https://www.google.com/*",
+  "https://developer.chrome.com/*"
+];
+
+const warnings = getPermissionWarnings(manifestPerms, hostPerms);
+
+console.log(warnings);
+// Output:
+// [
+//   "Read your Browse history",
+//   "Access your data on specific sites"
+// ]
+```
+
+### Chrome Web Store Integration
+
+Flow Browser uses this API when displaying extension installation dialogs:
+
+```typescript
+import { getPermissionWarnings } from "@/modules/extensions/permission-warnings";
+import { dialog } from "electron";
+
+await installChromeWebStore({
+  beforeInstall: async (details) => {
+    const manifest = details.manifest;
+    
+    // Get permission warnings
+    const warnings = getPermissionWarnings(
+      manifest.permissions || [],
+      manifest.host_permissions || []
+    );
+    
+    // Build permission message
+    let message = `Add "${details.localizedName}"?`;
+    
+    if (warnings.length > 0) {
+      message += "\n\nThis extension can:\n";
+      warnings.forEach(warning => {
+        message += `• ${warning}\n`;
+      });
+    }
+    
+    // Show dialog
+    const result = await dialog.showMessageBox({
+      title: "Install Extension",
+      message,
+      icon: details.icon,
+      buttons: ["Cancel", "Add Extension"]
+    });
+    
+    return { action: result.response === 0 ? "deny" : "allow" };
+  }
+});
+```
+
+See: [loaded-profiles-controller/index.ts:230](https://github.com/flow-browser/flow/blob/main/src/main/controllers/loaded-profiles-controller/index.ts#L230)
+
+## Permission Categories
+
+### High-Impact Permissions
+
+These permissions have the highest precedence and generate prominent warnings:
+
+| Permission | Warning Message |
+|------------|----------------|
+| `debugger` | Debug extensions and pages |
+| `<all_urls>` | Read and change all your data on all websites |
+| `management` | Manage your apps, extensions, and themes |
+
+### Browser Data Access
+
+| Permission | Warning Message |
+|------------|----------------|
+| `history` | Read and change your Browse history on all your signed-in devices |
+| `tabs` | Read your Browse history |
+| `bookmarks` | Read and change your bookmarks |
+| `readingList` | Read and change your reading list |
+| `downloads` | Manage your downloads |
+| `downloads.open` | Open files that you have downloaded |
+
+### Clipboard and Input
+
+| Permission | Warning Message |
+|------------|----------------|
+| `clipboardRead` + `clipboardWrite` | Read and modify data you copy and paste |
+| `clipboardRead` | Read data you copy and paste |
+| `clipboardWrite` | Modify data you copy and paste |
+| `input` | Monitor keyboard input |
+
+### Media Capture
+
+| Permission | Warning Message |
+|------------|----------------|
+| `audioCapture` + `videoCapture` | Capture audio and video |
+| `audioCapture` | Capture audio |
+| `videoCapture` | Capture video |
+| `desktopCapture` | Capture content of your screen |
+
+### Location and Identity
+
+| Permission | Warning Message |
+|------------|----------------|
+| `geolocation` | Detect your physical location |
+| `identity.email` | Know your email address |
+
+### Network and Connectivity
+
+| Permission | Warning Message |
+|------------|----------------|
+| `proxy` | Read and modify proxy settings |
+| `vpnProvider` | Manage VPN connections |
+| `declarativeNetRequest` | Block network requests |
+| `declarativeWebRequest` | Block parts of web pages |
+
+### Device Access
+
+| Permission | Warning Message |
+|------------|----------------|
+| `usbDevices` | Access USB devices |
+| `bluetooth` + `serial` | Access Bluetooth and serial devices |
+| `bluetooth` | Access Bluetooth devices |
+| `serial` | Access serial devices |
+| `u2fDevices` | Access U2F security keys |
+
+### Privacy and Settings
+
+| Permission | Warning Message |
+|------------|----------------|
+| `privacy` | Change privacy-related settings |
+| `contentSettings` | Change settings that control websites' access to features |
+
+## Permission Precedence Rules
+
+The API follows Chromium's precedence rules:
+
+1. **Higher-impact permissions suppress lower ones**
+   - `<all_urls>` absorbs many other permissions like `tabs`, `webNavigation`
+   - Combined permissions generate a single warning
+
+2. **Required and optional permissions**
+   - Each rule specifies required permissions that must all be present
+   - Optional permissions are consumed if the rule matches
+
+3. **First match wins**
+   - Rules are processed in order
+   - Once a permission is consumed, it won't trigger later rules
+
+Example:
+
+```typescript
+// These permissions...
+const perms = ["tabs", "webNavigation", "<all_urls>"];
+
+// Generate only ONE warning because <all_urls> absorbs the others:
+const warnings = getPermissionWarnings(perms);
+// ["Read and change all your data on all websites"]
+
+// Instead of three separate warnings
+```
+
+See: [modules/extensions/permission-warnings.ts:266](https://github.com/flow-browser/flow/blob/main/src/main/modules/extensions/permission-warnings.ts#L266)
+
+## Advanced Examples
+
+### Content Script Permissions
+
+```typescript
+// Extension with content scripts on specific sites
+const manifest = {
+  permissions: ["activeTab", "scripting"],
+  host_permissions: [
+    "https://github.com/*",
+    "https://gitlab.com/*"
+  ]
+};
+
+const warnings = getPermissionWarnings(
+  manifest.permissions,
+  manifest.host_permissions
+);
+// ["Access your data on specific sites"]
+```
+
+### Extension with Multiple Capabilities
+
+```typescript
+const permissions = [
+  "tabs",
+  "bookmarks",
+  "history",
+  "clipboardRead",
+  "clipboardWrite",
+  "notifications"
+];
+
+const warnings = getPermissionWarnings(permissions);
+console.log(warnings);
+// [
+//   "Read and change your Browse history on all your signed-in devices",
+//   "Read and change your bookmarks",
+//   "Read and modify data you copy and paste",
+//   "Display notifications"
+// ]
+```
+
+### Debugger Extension
+
+```typescript
+const permissions = ["debugger", "tabs", "<all_urls>"];
+const warnings = getPermissionWarnings(permissions);
+
+console.log(warnings);
+// ["Debug extensions and pages"]
+// Note: This is a very high-privilege permission
+```
+
+## Implementation Details
+
+### Permission Mapping
+
+The module maintains mappings from manifest permission strings to internal permission IDs:
+
+```typescript
+const permissionMapping: Record<string, string> = {
+  kDebugger: "debugger",
+  kTab: "tabs",
+  kHistory: "history",
+  kBookmark: "bookmarks",
+  // ... many more
+};
+```
+
+See: [modules/extensions/permission-warnings.ts:133](https://github.com/flow-browser/flow/blob/main/src/main/modules/extensions/permission-warnings.ts#L133)
+
+### Permission Messages
+
+Messages are stored in a lookup table:
+
+```typescript
+const permissionMessages: Record<string, string> = {
+  IDS_EXTENSION_PROMPT_WARNING_HISTORY: 
+    "Read and change your Browse history",
+  IDS_EXTENSION_PROMPT_WARNING_TABS: 
+    "Read your Browse history",
+  IDS_EXTENSION_PROMPT_WARNING_BOOKMARKS: 
+    "Read and change your bookmarks",
+  // ... hundreds more
+};
+```
+
+See: [modules/extensions/permission-warnings.ts:17](https://github.com/flow-browser/flow/blob/main/src/main/modules/extensions/permission-warnings.ts#L17)
+
+### Host Permission Detection
+
+The API detects specific host patterns:
+
+```typescript
+function isSpecificHostPermission(permission: string): boolean {
+  return permission.includes("://") || permission.startsWith("*");
+}
+
+// Examples:
+isSpecificHostPermission("<all_urls>")                  // true
+isSpecificHostPermission("https://*.google.com/*")      // true
+isSpecificHostPermission("*://example.com/*")           // true
+isSpecificHostPermission("tabs")                        // false
+```
+
+See: [modules/extensions/permission-warnings.ts:585](https://github.com/flow-browser/flow/blob/main/src/main/modules/extensions/permission-warnings.ts#L585)
+
+## Limitations
+
+<Note>
+**Known Limitations**
+
+This implementation has some differences from Chromium:
+
+1. **No dynamic formatting**: Uses static messages instead of formatting with host lists
+2. **Simplified host handling**: Specific host permissions use generic placeholder messages
+3. **Best-effort mapping**: Some C++ API permission IDs may not map perfectly to manifest strings
+4. **No placeholder replacement**: Messages with `<ph>` tags show raw text
+5. **Default environment**: Assumes non-ChromeOS environment for conditional messages
+</Note>
+
+See: [modules/extensions/permission-warnings.ts:9](https://github.com/flow-browser/flow/blob/main/src/main/modules/extensions/permission-warnings.ts#L9)
+
+## ChromeOS-Specific Permissions
+
+Some permissions are specific to ChromeOS:
+
+```typescript
+const chromeOSPermissions = [
+  "chromeos.telemetry",
+  "chromeos.diagnostics",
+  "chromeos.events",
+  "enterprise.platformKeys",
+  "enterprise.deviceAttributes"
+];
+
+const warnings = getPermissionWarnings(chromeOSPermissions);
+// These will show appropriate warnings even on non-ChromeOS platforms
+```
+
+See: [modules/extensions/permission-warnings.ts:543](https://github.com/flow-browser/flow/blob/main/src/main/modules/extensions/permission-warnings.ts#L543)
+
+## Enterprise Permissions
+
+Enterprise extensions may request special permissions:
+
+| Permission | Warning Message |
+|------------|----------------|
+| `enterprise.deviceAttributes` | See device information, such as its serial number or asset ID |
+| `enterprise.platformKeys` | Perform security-related tasks for your organization |
+| `enterprise.reportingPrivate` | Read information about your browser, OS, and device |
+| `enterprise.networkingAttributes` | See network information, such as your IP or MAC address |
+
+## Best Practices
+
+### For Extension Developers
+
+<Warning>
+**Request Minimal Permissions**
+
+Only request permissions your extension actually needs:
+
+```typescript
+// Bad: Requesting unnecessary permissions
+{
+  "permissions": ["<all_urls>", "tabs", "history", "bookmarks"]
+}
+
+// Good: Minimal permissions
+{
+  "permissions": ["activeTab", "storage"]
+}
+```
+
+Users are more likely to install extensions with fewer permission warnings.
+</Warning>
+
+### For Browser Developers
+
+```typescript
+// Always show permission warnings before installation
+import { getPermissionWarnings } from "@/modules/extensions/permission-warnings";
+
+async function showInstallDialog(manifest, extensionName) {
+  const warnings = getPermissionWarnings(
+    manifest.permissions || [],
+    manifest.host_permissions || []
+  );
+  
+  if (warnings.length === 0) {
+    return await simpleConfirmDialog(extensionName);
+  }
+  
+  return await detailedPermissionDialog(extensionName, warnings);
+}
+```
+
+## Testing Permission Warnings
+
+```typescript
+import { getPermissionWarnings } from "@/modules/extensions/permission-warnings";
+
+// Test different permission combinations
+const testCases = [
+  {
+    name: "Minimal extension",
+    perms: ["storage"],
+    expected: [] // storage doesn't generate warnings
+  },
+  {
+    name: "History access",
+    perms: ["history"],
+    expected: ["Read and change your Browse history on all your signed-in devices"]
+  },
+  {
+    name: "All sites",
+    perms: [],
+    hosts: ["<all_urls>"],
+    expected: ["Read and change all your data on all websites"]
+  }
+];
+
+testCases.forEach(({ name, perms, hosts, expected }) => {
+  const warnings = getPermissionWarnings(perms, hosts);
+  console.log(`${name}:`, warnings);
+  console.assert(
+    JSON.stringify(warnings) === JSON.stringify(expected),
+    `Expected ${expected} but got ${warnings}`
+  );
+});
+```
+
+## Related APIs
+
+- [Extension Overview](/api/extensions/overview) - Main extension integration
+- [Extension Locales](/api/extensions/locales) - Internationalization support

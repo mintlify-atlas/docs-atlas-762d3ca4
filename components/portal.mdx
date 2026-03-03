@@ -1,0 +1,462 @@
+---
+title: 'Portal Component'
+description: 'Render content in separate browser windows for floating UI elements'
+---
+
+## Overview
+
+The Portal component allows content to be rendered in a separate Electron WebContentsView window, enabling floating UI elements that break out of the main DOM hierarchy. This is used for the floating sidebar, popovers, extension popups, and context menus.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Separate Windows" icon="window">
+    Content renders in its own WebContentsView with precise positioning
+  </Card>
+  <Card title="Style Sync" icon="palette">
+    Automatically copies and synchronizes styles from the main document
+  </Card>
+  <Card title="Dynamic Bounds" icon="arrows-maximize">
+    Supports real-time position and size updates
+  </Card>
+  <Card title="Z-Index Control" icon="layer-group">
+    Manages stacking order across multiple portal windows
+  </Card>
+</CardGroup>
+
+## Architecture
+
+The Portal system uses a client-server architecture:
+
+<Steps>
+  <Step title="Frontend (React)">
+    `PortalComponent` creates window instances and manages content rendering via React portals
+  </Step>
+  <Step title="Backend (Electron)">
+    `portal-component-windows.ts` manages native WebContentsView instances and handles positioning
+  </Step>
+  <Step title="IPC Communication">
+    React communicates with Electron via `flow.interface.*` methods
+  </Step>
+</Steps>
+
+## Portal Component
+
+**Location**: `src/renderer/src/components/portal/portal.tsx`
+
+```tsx
+import { PortalComponent } from "@/components/portal/portal";
+
+<PortalComponent
+  visible={true}
+  zIndex={ViewLayer.OVERLAY}
+  autoFocus={false}
+  className="fixed"
+  style={{ top: 0, left: 0, width: 300, height: 200 }}
+>
+  <div>Portal content goes here</div>
+</PortalComponent>
+```
+
+### Props
+
+<ParamField path="visible" type="boolean" default="true">
+  Controls visibility of the portal window
+</ParamField>
+
+<ParamField path="zIndex" type="number" default="ViewLayer.OVERLAY (30)">
+  Z-index layer for the portal window (uses ViewLayer constants)
+</ParamField>
+
+<ParamField path="autoFocus" type="boolean" default="false">
+  Whether to automatically focus the portal's webContents when visible
+</ParamField>
+
+<ParamField path="className" type="string">
+  CSS classes for the invisible sizing element in the main document
+</ParamField>
+
+<ParamField path="style" type="React.CSSProperties">
+  Inline styles for positioning and sizing the portal
+</ParamField>
+
+<ParamField path="children" type="ReactNode" required>
+  Content to render inside the portal window
+</ParamField>
+
+## View Layers
+
+Portals use the `ViewLayer` system for z-index management:
+
+```typescript
+// From src/shared/layers.ts
+export const ViewLayer = {
+  TAB_BACK: 0,       // Background tab (glance mode)
+  TAB: 10,           // Standard tab content
+  TAB_FRONT: 20,     // Foreground tab (glance mode)
+  OVERLAY: 30,       // Portal windows (floating sidebar, toasts, extensions)
+  POPOVER: 40,       // Portal popovers (menus, dropdowns)
+  OMNIBOX: 100       // Command palette (topmost)
+} as const;
+```
+
+**Usage Example**:
+
+```tsx
+import { ViewLayer } from "~/layers";
+
+<PortalComponent zIndex={ViewLayer.POPOVER}>
+  <ContextMenu />
+</PortalComponent>
+```
+
+## Portal Provider
+
+The portal system uses a provider to manage a pool of pre-created portal windows for better performance.
+
+**Location**: `src/renderer/src/components/portal/provider.tsx`
+
+```tsx
+import { PortalsProvider, usePortalsProvider } from "@/components/portal/provider";
+
+function App() {
+  return (
+    <PortalsProvider>
+      {/* Your app */}
+    </PortalsProvider>
+  );
+}
+```
+
+### Portal Pool
+
+The provider maintains a pool of idle portals:
+
+```typescript
+const MAX_IDLE_PORTALS = 10;
+const MIN_IDLE_PORTALS = 5;
+
+interface Portal {
+  id: string;
+  window: Window;
+  _destroy: () => void;
+}
+
+window.portals = {
+  available: Map<string, Portal>;
+  used: Map<string, Portal>;
+};
+```
+
+### Using Portals
+
+```tsx
+import { usePortalsProvider } from "@/components/portal/provider";
+
+function MyComponent() {
+  const { usePortal } = usePortalsProvider();
+  const portal = usePortal(); // Takes a portal from the pool
+  
+  // Portal is automatically released on unmount
+  
+  return (
+    <div>
+      {portal && createPortal(
+        <div>Content</div>,
+        portal.window.document.body
+      )}
+    </div>
+  );
+}
+```
+
+## Portal Context
+
+Portals provide bounds information to their children:
+
+```tsx
+import { usePortalContext } from "@/components/portal/portal";
+
+function PortalChild() {
+  const { x, y, width, height } = usePortalContext();
+  
+  // Use portal bounds for positioning calculations
+}
+```
+
+## Style Synchronization
+
+Portals automatically copy styles from the main document using the `useCopyStyles` hook:
+
+**Location**: `src/renderer/src/hooks/use-copy-styles.ts`
+
+```typescript
+// Pre-warm: copy all styles on portal creation
+copyStylesToDocument(containerWin.document);
+
+// Then watch for changes with MutationObserver
+useCopyStyles(portal?.window ?? null);
+```
+
+**What gets copied**:
+- All `<style>` tags (including Tailwind CSS)
+- All `<link rel="stylesheet">` tags
+- Dynamically added styles via MutationObserver
+
+## Bounds Management
+
+Portal bounds are calculated from a "sizer" element:
+
+```tsx
+// Invisible element in main document for measuring
+const sizer = createPortal(
+  <div {...args} ref={mergedRef} className={cn("pointer-events-none", className)} />,
+  window.document.body,
+  "portal-sizer"
+);
+
+// Track bounds with useBoundingRect hook
+const boundsRect = useBoundingRect(holderRef);
+const bounds = useMemo(() => ({
+  x: Math.round(boundsRect?.x ?? 0),
+  y: Math.round(boundsRect?.y ?? 0),
+  width: Math.round(boundsRect?.width ?? 0),
+  height: Math.round(boundsRect?.height ?? 0)
+}), [boundsRect]);
+
+// Send to Electron
+flow.interface.setComponentWindowBounds(portal.id, bounds);
+```
+
+## IPC Methods
+
+Portals communicate with Electron via these Flow API methods:
+
+### Set Bounds
+
+```typescript
+flow.interface.setComponentWindowBounds(
+  portalId: string,
+  bounds: { x: number; y: number; width: number; height: number }
+): void
+```
+
+### Set Visibility
+
+```typescript
+flow.interface.setComponentWindowVisible(
+  portalId: string,
+  visible: boolean
+): void
+```
+
+### Set Z-Index
+
+```typescript
+flow.interface.setComponentWindowZIndex(
+  portalId: string,
+  zIndex: number
+): void
+```
+
+### Focus Portal
+
+```typescript
+flow.interface.focusComponentWindow(
+  portalId: string
+): void
+```
+
+## PortalPopover Component
+
+A specialized component for popover UI elements.
+
+**Location**: `src/renderer/src/components/portal/popover.tsx`
+
+```tsx
+import { PortalPopover } from "@/components/portal/popover";
+import { PopoverTrigger } from "@/components/ui/popover";
+
+<PortalPopover.Root open={open} onOpenChange={setOpen}>
+  <PopoverTrigger>
+    <button>Open Menu</button>
+  </PopoverTrigger>
+  
+  <PortalPopover.Content className="w-56 p-2">
+    <div>Menu item 1</div>
+    <div>Menu item 2</div>
+  </PortalPopover.Content>
+</PortalPopover.Root>
+```
+
+### Usage in Navigation Controls
+
+The back/forward buttons use PortalPopover for history menus:
+
+```tsx
+<PortalPopover.Root open={open} onOpenChange={setOpen}>
+  <PopoverTrigger ref={triggerRef} className="absolute opacity-0 pointer-events-none" />
+  
+  <PortalPopover.Content className={cn("w-56 p-2", spaceInjectedClasses)}>
+    {backwardEntries.map((entry, index) => (
+      <div
+        key={index}
+        onClick={() => {
+          flow.navigation.goToNavigationEntry(focusedTabId, entry.index);
+          setOpen(false);
+        }}
+        className="flex items-center px-2 py-1.5 text-sm rounded-sm hover:bg-accent"
+      >
+        {entry.title || entry.url}
+      </div>
+    ))}
+  </PortalPopover.Content>
+</PortalPopover.Root>
+```
+
+## Backend Implementation
+
+**Location**: `electron/browser/components/portal-component-windows.ts`
+
+### Core Functions
+
+```typescript
+// Initialize portal system
+initializePortalComponentWindows(
+  browserWindow: BrowserWindow
+): void
+
+// Update portal bounds
+setComponentWindowBounds(
+  componentId: string,
+  bounds: { x: number; y: number; width: number; height: number }
+): void
+
+// Set portal z-index
+setComponentWindowZIndex(
+  componentId: string,
+  zIndex: number
+): void
+```
+
+### WebContentsView Management
+
+```typescript
+const componentViews = new Map<string, WebContentsView>();
+
+// When a portal is created
+const view = new WebContentsView({
+  webPreferences: {
+    preload: path.join(__dirname, '../preload/index.js')
+  }
+});
+
+// Add to browser window
+browserWindow.contentView.addChildView(view);
+
+// Update position and size
+view.setBounds({
+  x: bounds.x,
+  y: bounds.y,
+  width: bounds.width,
+  height: bounds.height
+});
+
+// Cleanup on destruction
+view.webContents.on('destroyed', () => {
+  componentViews.delete(componentId);
+});
+```
+
+## Usage Examples
+
+### Floating Sidebar
+
+```tsx
+<PortalComponent
+  className="fixed"
+  style={{
+    top: topbarHeight,
+    left: 0,
+    width: sidebarWidth + 30,
+    height: `calc(100vh - ${topbarHeight}px)`
+  }}
+  visible={true}
+  zIndex={ViewLayer.OVERLAY}
+>
+  <div className="h-full overflow-hidden p-2">
+    <SidebarContent />
+  </div>
+</PortalComponent>
+```
+
+### Extension Popup
+
+```tsx
+<PortalComponent
+  visible={popupVisible}
+  zIndex={ViewLayer.POPOVER}
+  autoFocus={true}
+  style={{
+    position: 'fixed',
+    top: anchorRect.bottom + 8,
+    left: anchorRect.left,
+    width: 400,
+    height: 600
+  }}
+>
+  <ExtensionPopupContent />
+</PortalComponent>
+```
+
+## Performance Considerations
+
+- **Portal Pool**: Pre-created portals eliminate window creation delay
+- **Style Sync**: Initial style copy on portal creation prevents flash of unstyled content
+- **Bounds Updates**: Use `useLayoutEffect` for synchronous updates before paint
+- **Memory**: Portals are released back to the pool on unmount, not destroyed
+
+## Debugging
+
+Enable DevTools for portal windows:
+
+```typescript
+// In electron/browser/components/portal-component-windows.ts
+const DEBUG_ENABLE_DEVTOOLS = true;
+
+if (DEBUG_ENABLE_DEVTOOLS) {
+  view.webContents.openDevTools({ mode: 'detach' });
+}
+```
+
+## Limitations
+
+<Warning>
+  - Portal windows are separate DOM trees, so React Context providers in the main app won't be available
+  - Each portal must re-provide necessary contexts (PlatformConsumer, theme, etc.)
+  - CSS styles must be explicitly copied (handled automatically by `useCopyStyles`)
+</Warning>
+
+## Best Practices
+
+<Check>
+  Use portals sparingly - only when content truly needs to break out of container constraints
+</Check>
+
+<Check>
+  Manage z-index carefully using `ViewLayer` constants to ensure proper stacking
+</Check>
+
+<Check>
+  Wrap portal content in necessary context providers (Platform, theme, etc.)
+</Check>
+
+<Check>
+  For simple overflow scenarios, try CSS solutions (`overflow: visible`, `position: fixed`) before using portals
+</Check>
+
+## Related Components
+
+- [Browser Sidebar](/components/sidebar) - Uses portals for floating mode
+- [Browser UI](/components/browser-ui) - Main layout system
+- View Layer system in `src/shared/layers.ts`

@@ -1,0 +1,354 @@
+---
+title: Installation
+description: Download and install Flow Browser on Windows, macOS, or Linux
+---
+
+## System Requirements
+
+Before installing Flow Browser, ensure your system meets these minimum requirements:
+
+<CardGroup cols={3}>
+  <Card title="Windows" icon="windows">
+    - Windows 10 or later
+    - 64-bit processor
+    - 4GB RAM minimum
+  </Card>
+  
+  <Card title="macOS" icon="apple">
+    - macOS 10.13 or later
+    - Intel or Apple Silicon
+    - 4GB RAM minimum
+  </Card>
+  
+  <Card title="Linux" icon="linux">
+    - Modern Linux distribution
+    - 64-bit processor
+    - 4GB RAM minimum
+  </Card>
+</CardGroup>
+
+## Download Flow Browser
+
+Flow Browser is distributed through GitHub Releases. Choose the appropriate installer for your platform:
+
+<Steps>
+  <Step title="Visit GitHub Releases">
+    Navigate to the [Flow Browser Releases page](https://github.com/MultiboxLabs/flow-browser/releases) on GitHub.
+  </Step>
+  
+  <Step title="Download the Latest Version">
+    Download the installer file for your operating system from the latest release (current version: **v0.10.1**).
+  </Step>
+</Steps>
+
+### Available Download Formats
+
+<Tabs>
+  <Tab title="Windows">
+    **Windows Installer (.exe)**
+    
+    Download the file named:
+    ```bash
+    flow-browser-{version}-setup.exe
+    ```
+    
+    This installer will:
+    - Install Flow Browser to `C:\Program Files\Flow`
+    - Create desktop and start menu shortcuts
+    - Register Flow as a browser for http/https protocols
+    - Associate HTML and PDF file types with Flow
+    
+    <Note>
+      The executable name is `flow.exe` once installed.
+    </Note>
+  </Tab>
+  
+  <Tab title="macOS">
+    **macOS Disk Image (.dmg)**
+    
+    Download the file named:
+    ```bash
+    flow-browser-{version}-{arch}.dmg
+    ```
+    
+    Where `{arch}` is either:
+    - `arm64` - for Apple Silicon (M1, M2, M3)
+    - `x64` - for Intel-based Macs
+    
+    The DMG includes:
+    - Notarized and signed application bundle
+    - Beautiful DMG background for easy installation
+    - Automatic association with web protocols
+    
+    <Warning>
+      macOS may show a security warning for apps downloaded outside the App Store. Go to System Preferences > Security & Privacy to allow the installation.
+    </Warning>
+  </Tab>
+  
+  <Tab title="Linux">
+    **Multiple Linux Formats**
+    
+    Flow Browser provides several Linux package formats:
+    
+    **AppImage** (Universal)
+    ```bash
+    flow-browser-{version}-{arch}.AppImage
+    ```
+    
+    **Debian/Ubuntu (.deb)**
+    ```bash
+    flow-browser-{version}-{arch}.deb
+    ```
+    
+    **Flatpak**
+    ```bash
+    flow-browser-{version}-{arch}.flatpak
+    ```
+    
+    <Note>
+      The Linux builds include `--ozone-platform-hint=auto` for optimal Wayland/X11 support.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Installation Instructions
+
+<CodeGroup>
+
+```bash Windows
+# Run the installer
+flow-browser-0.10.1-setup.exe
+
+# Follow the installation wizard
+# Flow Browser will be installed to:
+# C:\Program Files\Flow
+
+# Launch from Start Menu or desktop shortcut
+```
+
+```bash macOS
+# Open the DMG file
+open flow-browser-0.10.1-arm64.dmg
+
+# Drag Flow.app to Applications folder
+# Eject the DMG
+
+# Launch from Applications or Spotlight
+open -a Flow
+```
+
+```bash Linux (AppImage)
+# Make the AppImage executable
+chmod +x flow-browser-0.10.1-x86_64.AppImage
+
+# Run the AppImage
+./flow-browser-0.10.1-x86_64.AppImage
+```
+
+```bash Linux (Debian/Ubuntu)
+# Install the .deb package
+sudo dpkg -i flow-browser-0.10.1-amd64.deb
+
+# Install dependencies if needed
+sudo apt-get install -f
+
+# Launch Flow Browser
+flow-browser
+```
+
+```bash Linux (Flatpak)
+# Install the Flatpak
+flatpak install flow-browser-0.10.1-x86_64.flatpak
+
+# Run Flow Browser
+flatpak run dev.iamevan.flow
+```
+
+</CodeGroup>
+
+## Building from Source
+
+For developers who want to build Flow Browser from source:
+
+<Steps>
+  <Step title="Install Prerequisites">
+    Ensure you have the required development tools:
+    
+    - **Node.js v22+** (see `.nvmrc` in the repository)
+    - **Bun v1.2.0+** (package manager)
+    - **build-essential** and **python3** (for native module compilation)
+    
+    <CodeGroup>
+    
+    ```bash macOS
+    # Install Bun
+    curl -fsSL https://bun.sh/install | bash
+    
+    # Install Node.js via nvm
+    nvm install 22
+    nvm use 22
+    ```
+    
+    ```bash Linux
+    # Install Bun
+    curl -fsSL https://bun.sh/install | bash
+    
+    # Install build dependencies
+    sudo apt-get install build-essential python3
+    
+    # Install Node.js via nvm
+    nvm install 22
+    nvm use 22
+    ```
+    
+    ```bash Windows
+    # Install Bun (PowerShell)
+    powershell -c "irm bun.sh/install.ps1|iex"
+    
+    # Install Node.js from nodejs.org
+    # Install Visual Studio Build Tools
+    ```
+    
+    </CodeGroup>
+  </Step>
+  
+  <Step title="Clone the Repository">
+    ```bash
+    git clone https://github.com/MultiboxLabs/flow-browser.git
+    cd flow-browser
+    ```
+  </Step>
+  
+  <Step title="Install Dependencies">
+    ```bash
+    # Install all dependencies
+    bun install
+    ```
+    
+    <Note>
+      The `postinstall` script automatically runs `electron-builder install-app-deps` to rebuild native modules for Electron.
+    </Note>
+  </Step>
+  
+  <Step title="Build the Application">
+    Choose the build command for your platform:
+    
+    ```bash
+    # Build for your current platform
+    bun run build
+    
+    # Platform-specific builds
+    bun run build:win     # Windows
+    bun run build:mac     # macOS
+    bun run build:linux   # Linux (AppImage, deb, flatpak)
+    ```
+    
+    The built application will be in the `./dist` directory.
+  </Step>
+</Steps>
+
+### Development Build
+
+If you want to run Flow Browser in development mode:
+
+```bash
+# Start in preview mode (production-like)
+bun start
+
+# Start with hot reloading
+bun dev
+
+# Start with file watching (recommended for development)
+bun dev:watch
+```
+
+## File Associations
+
+Flow Browser automatically registers handlers for:
+
+### Protocols
+- `http://` - HyperText Transfer Protocol
+- `https://` - Secure HyperText Transfer Protocol
+
+### File Types
+- `.html`, `.htm` - HTML Documents
+- `.xhtml`, `.xhtm` - XHTML Documents
+- `.mhtml` - MHTML Archive
+- `.shtml` - Server-Side HTML
+- `.pdf` - PDF Documents (with built-in viewer)
+
+## Widevine DRM Support
+
+Flow Browser includes Widevine CDM support for streaming protected content:
+
+<Note>
+  Flow uses a custom Electron build from [@castlabs/electron-releases](https://github.com/castlabs/electron-releases) to enable Widevine support for Netflix, Spotify, and other DRM-protected services.
+</Note>
+
+For advanced users building from source with VMP signing:
+
+1. [Create an EVS account](https://github.com/castlabs/electron-releases/wiki/EVS#creating-an-evs-account)
+2. Configure your credentials in the build environment
+3. The build pipeline will automatically VMP-sign your application
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Windows: Installer is blocked by SmartScreen">
+    Flow Browser is not yet signed with an Extended Validation (EV) certificate. To install:
+    
+    1. Click "More info" in the SmartScreen warning
+    2. Click "Run anyway"
+    
+    This is safe - Flow Browser is open source and can be audited on GitHub.
+  </Accordion>
+  
+  <Accordion title="macOS: App cannot be opened because it is from an unidentified developer">
+    Flow Browser is notarized but may still show this warning:
+    
+    1. Open System Preferences > Security & Privacy
+    2. Click "Open Anyway" next to the Flow Browser warning
+    3. Confirm by clicking "Open"
+    
+    Alternatively, right-click the app and select "Open".
+  </Accordion>
+  
+  <Accordion title="Linux: Missing dependencies error">
+    If you encounter missing dependencies:
+    
+    ```bash
+    # Ubuntu/Debian
+    sudo apt-get install libgtk-3-0 libnotify4 libnss3 \
+      libxtst6 xdg-utils libatspi2.0-0 libdrm2 libgbm1 \
+      libasound2
+    
+    # Fedora
+    sudo dnf install gtk3 libnotify nss libXtst xdg-utils \
+      at-spi2-core libdrm mesa-libgbm alsa-lib
+    ```
+  </Accordion>
+  
+  <Accordion title="Build fails with node-gyp errors">
+    Ensure you have the required build tools:
+    
+    - **Linux**: `sudo apt-get install build-essential python3`
+    - **macOS**: Install Xcode Command Line Tools: `xcode-select --install`
+    - **Windows**: Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022)
+    
+    See [node-gyp installation guide](https://github.com/nodejs/node-gyp#installation) for more details.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+Now that you've installed Flow Browser, check out the [Quick Start Guide](/quickstart) to learn how to use its features.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get started with Flow Browser in minutes
+  </Card>
+  
+  <Card title="Features" icon="star" href="/features/profiles">
+    Explore all available features
+  </Card>
+</CardGroup>

@@ -1,0 +1,633 @@
+---
+title: Renderer Process
+description: React 19 UI architecture with TailwindCSS 4 and Motion animations
+---
+
+The **renderer process** is the React-based user interface layer. Each window runs in its own renderer process, communicating with the main process via IPC.
+
+## Technology Stack
+
+<CardGroup cols={2}>
+  <Card title="React 19" icon="react">
+    Latest React with Compiler for automatic optimizations
+  </Card>
+  <Card title="TailwindCSS 4" icon="css3">
+    Utility-first CSS with latest v4 features
+  </Card>
+  <Card title="Motion" icon="wand-magic-sparkles">
+    Animations (Framer Motion successor)
+  </Card>
+  <Card title="Vite 7" icon="bolt">
+    Fast development and optimized builds
+  </Card>
+</CardGroup>
+
+**Package.json**: `package.json:95` (React 19.2.4)
+
+## Route-Based Architecture
+
+Flow Browser uses a **route-based structure** where each window type has its own route.
+
+**Routes Directory**: `src/renderer/src/routes/`
+
+### Available Routes
+
+<AccordionGroup>
+  <Accordion title="main-ui - Primary Browser Interface">
+    **Path**: `flow-internal://main-ui`
+    
+    **Component**: `src/renderer/src/routes/main-ui/page.tsx:1`
+    
+    The main browser chrome rendered in each browser window:
+    - Tabbar with tab management
+    - Address bar / omnibox
+    - Sidebar with navigation
+    - Window controls
+    - Extension toolbar
+    
+    ```tsx
+    import { BrowserUI } from "@/components/browser-ui/main";
+    
+    function Page() {
+      return <BrowserUI type="main" />;
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="popup-ui - Extension Popup Interface">
+    **Path**: `flow-internal://popup-ui`
+    
+    **Component**: `src/renderer/src/routes/popup-ui/page.tsx`
+    
+    Minimal browser UI for popup windows created by web pages.
+  </Accordion>
+  
+  <Accordion title="settings - Settings Window">
+    **Path**: `flow-internal://settings`
+    
+    **Component**: `src/renderer/src/routes/settings/page.tsx`
+    
+    Complete settings interface:
+    - General preferences
+    - Privacy & security
+    - Appearance customization
+    - Spaces/profiles management
+    - Keyboard shortcuts
+    - Extensions management
+  </Accordion>
+  
+  <Accordion title="new-tab - New Tab Page">
+    **Path**: `flow://new-tab`
+    
+    **Component**: `src/renderer/src/routes/new-tab/page.tsx`
+    
+    Default new tab page with:
+    - Search box
+    - Shortcuts
+    - Customizable background
+  </Accordion>
+  
+  <Accordion title="omnibox - Address Bar Suggestions">
+    **Path**: `flow-internal://omnibox`
+    
+    **Component**: `src/renderer/src/routes/omnibox/page.tsx`
+    
+    Floating omnibox window shown when typing in address bar:
+    - Search suggestions
+    - History results
+    - Bookmark matches
+    - Calculator
+    - Quick actions
+  </Accordion>
+  
+  <Accordion title="onboarding - First Run Wizard">
+    **Path**: `flow-internal://onboarding`
+    
+    **Component**: `src/renderer/src/routes/onboarding/page.tsx`
+    
+    First-run onboarding flow for new users.
+  </Accordion>
+  
+  <Accordion title="extensions - Extension Manager">
+    **Path**: `flow://extensions`
+    
+    **Component**: `src/renderer/src/routes/extensions/page.tsx`
+    
+    Chrome Web Store-style extension management interface.
+  </Accordion>
+  
+  <Accordion title="pdf-viewer - Built-in PDF Viewer">
+    **Path**: `flow://pdf-viewer`
+    
+    **Component**: `src/renderer/src/routes/pdf-viewer/page.tsx`
+    
+    Full-featured PDF viewer using @pdfslick/react:
+    - Zoom controls
+    - Page navigation
+    - Annotations
+    - Search
+    - Print
+  </Accordion>
+</AccordionGroup>
+
+## Component Architecture
+
+### Main Browser UI
+
+The primary browser interface is built from composable components:
+
+```tsx
+// src/renderer/src/components/browser-ui/main.tsx
+import { Tabbar } from "@/components/browser-ui/tabbar";
+import { Sidebar } from "@/components/browser-ui/sidebar";
+import { WindowControls } from "@/components/window-controls";
+import { Toolbar } from "@/components/browser-ui/toolbar";
+
+export function BrowserUI({ type }: { type: "main" | "popup" }) {
+  return (
+    <div className="flex h-screen flex-col">
+      <Tabbar />
+      <Toolbar />
+      <div className="flex flex-1">
+        <Sidebar />
+        {/* Web content rendered by main process */}
+      </div>
+      <WindowControls />
+    </div>
+  );
+}
+```
+
+### Component Categories
+
+<Tabs>
+  <Tab title="Browser UI">
+    **Location**: `src/renderer/src/components/browser-ui/`
+    
+    Core browser interface components:
+    - `tabbar/` - Tab strip and tab components
+    - `toolbar/` - Address bar, navigation buttons
+    - `sidebar/` - Sidebar with bookmarks, history
+    - `window-controls/` - Platform-specific window controls (macOS, Linux, Windows)
+    - `update-effect.tsx` - Update notification UI
+  </Tab>
+  
+  <Tab title="Settings">
+    **Location**: `src/renderer/src/components/settings/`
+    
+    Settings window components:
+    - `settings-layout.tsx` - Main settings layout
+    - `settings-sidebar.tsx` - Settings navigation
+    - `sections/` - Individual settings sections
+      - `spaces/` - Space theme customization
+      - `shortcuts/` - Keyboard shortcut editor
+  </Tab>
+  
+  <Tab title="UI Library">
+    **Location**: `src/renderer/src/components/ui/`
+    
+    Reusable shadcn/ui style components:
+    - `button.tsx`, `input.tsx`, `select.tsx` - Form controls
+    - `dialog.tsx`, `popover.tsx`, `dropdown-menu.tsx` - Overlays
+    - `tabs.tsx`, `accordion.tsx`, `card.tsx` - Layout
+    - `tooltip.tsx`, `badge.tsx`, `separator.tsx` - Utilities
+    - `sidebar.tsx`, `resizable.tsx` - Custom components
+  </Tab>
+  
+  <Tab title="Logic">
+    **Location**: `src/renderer/src/components/logic/`
+    
+    Non-visual logic components:
+    - `tab-disabler.tsx` - Disable keyboard shortcuts in tabs
+  </Tab>
+</Tabs>
+
+## Flow API Access
+
+The renderer process accesses main process functionality through the **Flow API** exposed by preload.
+
+### API Structure
+
+**Type Definition**: `src/shared/flow/flow.ts:30`
+
+```typescript
+declare global {
+  const flow: {
+    // App APIs
+    app: FlowAppAPI;
+    windows: FlowWindowsAPI;
+    extensions: FlowExtensionsAPI;
+    updates: FlowUpdatesAPI;
+    actions: FlowActionsAPI;
+    shortcuts: FlowShortcutsAPI;
+    
+    // Browser APIs
+    browser: FlowBrowserAPI;
+    tabs: FlowTabsAPI;
+    page: FlowPageAPI;
+    navigation: FlowNavigationAPI;
+    interface: FlowInterfaceAPI;
+    omnibox: FlowOmniboxAPI;
+    newTab: FlowNewTabAPI;
+    findInPage: FlowFindInPageAPI;
+    
+    // Session APIs
+    profiles: FlowProfilesAPI;
+    spaces: FlowSpacesAPI;
+    
+    // Settings APIs
+    settings: FlowSettingsAPI;
+    icons: FlowIconsAPI;
+    openExternal: FlowOpenExternalAPI;
+    onboarding: FlowOnboardingAPI;
+  };
+}
+```
+
+### Usage Examples
+
+<CodeGroup>
+```tsx Tab Management
+import { useState, useEffect } from 'react';
+
+function Tabbar() {
+  const [tabsData, setTabsData] = useState(null);
+  
+  // Subscribe to tab updates
+  useEffect(() => {
+    // Get initial data
+    flow.tabs.getData().then(setTabsData);
+    
+    // Subscribe to changes
+    const unsubscribe = flow.tabs.onDataUpdated((data) => {
+      setTabsData(data);
+    });
+    
+    return unsubscribe;
+  }, []);
+  
+  // Switch to tab
+  const handleTabClick = (tabId: number) => {
+    flow.tabs.switchToTab(tabId);
+  };
+  
+  // Close tab
+  const handleTabClose = (tabId: number) => {
+    flow.tabs.closeTab(tabId);
+  };
+  
+  return (
+    <div>
+      {tabsData?.tabs.map(tab => (
+        <Tab 
+          key={tab.id}
+          data={tab}
+          onClick={() => handleTabClick(tab.id)}
+          onClose={() => handleTabClose(tab.id)}
+        />
+      ))}
+    </div>
+  );
+}
+```
+
+```tsx Navigation
+function AddressBar() {
+  const [url, setUrl] = useState('');
+  const [activeTab, setActiveTab] = useState(null);
+  
+  useEffect(() => {
+    flow.tabs.getData().then(data => {
+      const active = data.tabs.find(t => t.isActive);
+      setActiveTab(active);
+      setUrl(active?.url || '');
+    });
+  }, []);
+  
+  const handleNavigate = () => {
+    if (activeTab) {
+      flow.navigation.goTo(url, activeTab.id);
+    }
+  };
+  
+  const handleReload = () => {
+    if (activeTab) {
+      flow.navigation.reloadTab(activeTab.id);
+    }
+  };
+  
+  return (
+    <div>
+      <button onClick={handleReload}>Reload</button>
+      <input 
+        value={url} 
+        onChange={e => setUrl(e.target.value)}
+        onKeyDown={e => e.key === 'Enter' && handleNavigate()}
+      />
+    </div>
+  );
+}
+```
+
+```tsx Spaces
+function SpaceSwitcher() {
+  const [spaces, setSpaces] = useState([]);
+  const [currentSpace, setCurrentSpace] = useState(null);
+  
+  useEffect(() => {
+    // Load spaces
+    flow.spaces.getSpaces().then(setSpaces);
+    flow.spaces.getUsingSpace().then(setCurrentSpace);
+    
+    // Subscribe to changes
+    const unsubscribe = flow.spaces.onSpacesChanged(() => {
+      flow.spaces.getSpaces().then(setSpaces);
+    });
+    
+    return unsubscribe;
+  }, []);
+  
+  const handleSwitchSpace = (profileId: string, spaceId: string) => {
+    flow.spaces.setUsingSpace(profileId, spaceId);
+  };
+  
+  return (
+    <div>
+      {spaces.map(space => (
+        <button 
+          key={space.id}
+          onClick={() => handleSwitchSpace(space.profileId, space.id)}
+          className={space.id === currentSpace?.id ? 'active' : ''}
+        >
+          {space.name}
+        </button>
+      ))}
+    </div>
+  );
+}
+```
+</CodeGroup>
+
+## State Management
+
+Flow Browser uses a **hybrid state approach**:
+
+### IPC Subscriptions
+
+<Accordion title="Tab State">
+Tab state is managed in the main process and pushed to renderer via IPC:
+
+```typescript
+// Subscribe to tab updates
+flow.tabs.onDataUpdated((data: WindowTabsData) => {
+  // Update React state
+  setTabsData(data);
+});
+
+// Subscribe to content-only updates (lighter payload)
+flow.tabs.onTabsContentUpdated((tabs: TabData[]) => {
+  // Update only tab content properties
+  setTabs(tabs);
+});
+```
+
+**Why**: Tab state lives in main process (WebContentsView lifecycle), renderer reflects it.
+</Accordion>
+
+<Accordion title="UI State">
+UI-specific state (sidebar open, settings panel) uses standard React state:
+
+```typescript
+const [sidebarOpen, setSidebarOpen] = useState(false);
+const [selectedSetting, setSelectedSetting] = useState('general');
+```
+
+**Why**: Purely UI state with no main process involvement.
+</Accordion>
+
+<Accordion title="Settings">
+Settings are persisted in main process, accessed via IPC:
+
+```typescript
+// Read setting
+const value = await flow.settings.getSetting('appearance.theme');
+
+// Write setting
+await flow.settings.setSetting('appearance.theme', 'dark');
+
+// Subscribe to changes
+flow.settings.onSettingsChanged(() => {
+  // Reload settings
+});
+```
+
+**Why**: Settings need to persist across sessions and be accessible to main process.
+</Accordion>
+
+## Custom Hooks
+
+**Location**: `src/renderer/src/hooks/`
+
+<Tabs>
+  <Tab title="use-debounce">
+    **File**: `src/renderer/src/hooks/use-debounce.tsx`
+    
+    Debounce rapidly changing values:
+    
+    ```tsx
+    const debouncedSearch = useDebounce(searchTerm, 300);
+    ```
+  </Tab>
+  
+  <Tab title="use-force-update">
+    **File**: `src/renderer/src/hooks/use-force-update.tsx`
+    
+    Force component re-render:
+    
+    ```tsx
+    const forceUpdate = useForceUpdate();
+    ```
+  </Tab>
+  
+  <Tab title="use-sidebar-resize">
+    **File**: `src/renderer/src/hooks/use-sidebar-resize.tsx`
+    
+    Handle sidebar resize with bounds:
+    
+    ```tsx
+    const { width, onResize } = useSidebarResize({ min: 200, max: 400 });
+    ```
+  </Tab>
+  
+  <Tab title="use-bounding-rect">
+    **File**: `src/renderer/src/hooks/use-bounding-rect.tsx`
+    
+    Get element bounding box:
+    
+    ```tsx
+    const [ref, bounds] = useBoundingRect();
+    ```
+  </Tab>
+</Tabs>
+
+## Styling with TailwindCSS 4
+
+Flow Browser uses **TailwindCSS 4** with the new Oxide engine.
+
+<Accordion title="Tailwind Configuration">
+Tailwind is configured via Vite plugin:
+
+```typescript
+// Vite config
+import tailwindcss from '@tailwindcss/vite';
+
+export default {
+  plugins: [
+    tailwindcss()
+  ]
+};
+```
+
+Custom theme tokens defined in CSS:
+
+```css
+@theme {
+  --color-primary: oklch(0.5 0.2 200);
+  --color-sidebar: oklch(0.95 0.01 200);
+}
+```
+</Accordion>
+
+### Component Styling Pattern
+
+```tsx
+import { cn } from '@/lib/utils';
+import { cva } from 'class-variance-authority';
+
+const buttonVariants = cva(
+  // Base styles
+  'inline-flex items-center justify-center rounded-md font-medium transition-colors',
+  {
+    variants: {
+      variant: {
+        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+        outline: 'border border-input hover:bg-accent',
+        ghost: 'hover:bg-accent hover:text-accent-foreground',
+      },
+      size: {
+        default: 'h-10 px-4 py-2',
+        sm: 'h-9 px-3',
+        lg: 'h-11 px-8',
+      },
+    },
+    defaultVariants: {
+      variant: 'default',
+      size: 'default',
+    },
+  }
+);
+
+function Button({ variant, size, className, ...props }) {
+  return (
+    <button 
+      className={cn(buttonVariants({ variant, size }), className)}
+      {...props}
+    />
+  );
+}
+```
+
+## Animations with Motion
+
+Flow uses **Motion** (Framer Motion v12) for animations.
+
+**Package**: `package.json:91` (motion 12.34.3)
+
+<Note>
+Import from `motion/react`, NOT `framer-motion`:
+
+```tsx
+import { motion, AnimatePresence } from 'motion/react';
+```
+</Note>
+
+### Animation Examples
+
+```tsx
+import { motion, AnimatePresence } from 'motion/react';
+
+function TabList({ tabs }) {
+  return (
+    <AnimatePresence mode="popLayout">
+      {tabs.map(tab => (
+        <motion.div
+          key={tab.id}
+          layout
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.8 }}
+          transition={{ duration: 0.2 }}
+        >
+          <Tab data={tab} />
+        </motion.div>
+      ))}
+    </AnimatePresence>
+  );
+}
+```
+
+## Build & Development
+
+### Development Mode
+
+```bash
+# Start dev server with hot reload
+bun dev
+
+# Start with file watching
+bun dev:watch
+```
+
+**Vite Config**: `electron.vite.config.ts`
+
+### Production Build
+
+```bash
+# Type check and build
+bun run build
+
+# Build specific platform
+bun run build:mac
+bun run build:win
+bun run build:linux
+```
+
+<Warning>
+Production builds use `PRODUCTION_BUILD=true` environment variable to enable optimizations and tree-shaking.
+</Warning>
+
+## React Compiler
+
+Flow Browser uses the **React Compiler** for automatic optimizations.
+
+**Plugin**: `package.json:73` (babel-plugin-react-compiler)
+
+The compiler automatically:
+- Memoizes components
+- Optimizes re-renders
+- Eliminates unnecessary useCallback/useMemo
+
+<Tip>
+No need for manual memoization in most cases - the compiler handles it!
+</Tip>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="IPC Communication" icon="arrows-left-right" href="/architecture/ipc">
+    Learn how renderer and main process communicate
+  </Card>
+  <Card title="Main Process" icon="server" href="/architecture/main-process">
+    Understand the backend architecture
+  </Card>
+</CardGroup>

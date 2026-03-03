@@ -1,0 +1,387 @@
+---
+title: Keyboard Shortcuts
+description: Customize keyboard shortcuts for fast browser navigation and control
+icon: keyboard
+---
+
+Flow Browser provides a comprehensive keyboard shortcut system that can be customized to match your workflow. All shortcuts support both Windows/Linux (`Ctrl`) and macOS (`Cmd`) modifier keys.
+
+## Default Shortcuts
+
+The default keyboard shortcuts are defined in `src/main/modules/shortcuts.ts:4-96`.
+
+### Tabs
+
+| Shortcut | Action | Category |
+|----------|--------|----------|
+| `Cmd/Ctrl + T` | New Tab | Tabs |
+| `Cmd/Ctrl + W` | Close Tab | Tab |
+| `Cmd/Ctrl + R` | Reload | Tab |
+| `Cmd/Ctrl + Shift + R` | Force Reload | Tab |
+| `Cmd/Ctrl + Shift + C` | Copy URL | Tab |
+| `F12` | Toggle DevTools | Tab |
+| `Cmd/Ctrl + F` | Find in Page | Tab |
+
+### Navigation
+
+| Shortcut | Action | Category |
+|----------|--------|----------|
+| `Cmd/Ctrl + Left` | Go Back | Navigation |
+| `Cmd/Ctrl + Right` | Go Forward | Navigation |
+| `Cmd/Ctrl + L` | Toggle Command Palette | Navigation |
+
+### Browser
+
+| Shortcut | Action | Category |
+|----------|--------|----------|
+| `Cmd/Ctrl + ,` | Open Settings | Browser |
+| `Cmd/Ctrl + N` | New Window | Browser |
+| `Cmd/Ctrl + Shift + W` | Close Window | Browser |
+| `Cmd/Ctrl + S` | Toggle Sidebar | Browser |
+
+### Spaces
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl + 1` | Switch to Space 1 |
+| `Ctrl + 2` | Switch to Space 2 |
+| `Ctrl + 3` | Switch to Space 3 |
+| ... | ... |
+| `Ctrl + 9` | Switch to Space 9 |
+
+<Note>
+  Space shortcuts are dynamically generated based on the number of Spaces you have. See [Spaces](/features/spaces) for more details.
+</Note>
+
+## Shortcut System Architecture
+
+The shortcut system consists of two main components:
+
+### 1. Shortcut Definitions
+
+Shortcuts are defined as typed objects:
+
+```typescript
+interface ShortcutAction {
+  id: string;           // Unique identifier (e.g., "tabs.new")
+  name: string;         // Display name (e.g., "New Tab")
+  shortcut: string;     // Key combination (e.g., "CommandOrControl+T")
+  category: string;     // Group name (e.g., "Tabs")
+}
+```
+
+From `src/main/modules/shortcuts.ts:4`.
+
+### 2. Shortcut Storage
+
+Modified shortcuts are persisted to disk:
+
+```typescript
+interface ModifiedShortcutData {
+  newShortcut: string;  // The customized key combination
+}
+```
+
+Stored using the datastore at `src/main/saving/shortcuts.ts:12`:
+
+```typescript
+export const ShortcutsDataStore = getDatastore('shortcuts');
+```
+
+## Customizing Shortcuts
+
+Shortcuts can be customized programmatically through the shortcuts saving system.
+
+### Update a Shortcut
+
+```typescript
+import { updateModifiedShortcut } from '@/saving/shortcuts';
+
+const success = await updateModifiedShortcut('tabs.new', {
+  newShortcut: 'CommandOrControl+Shift+T'
+});
+```
+
+From `src/main/saving/shortcuts.ts:49-68`.
+
+### Reset a Shortcut
+
+Restore a shortcut to its default value:
+
+```typescript
+import { resetModifiedShortcut } from '@/saving/shortcuts';
+
+const success = await resetModifiedShortcut('tabs.new');
+```
+
+### Reset All Shortcuts
+
+Restore all shortcuts to defaults:
+
+```typescript
+import { resetAllModifiedShortcuts } from '@/saving/shortcuts';
+
+const success = await resetAllModifiedShortcuts();
+```
+
+From `src/main/saving/shortcuts.ts:89-98`.
+
+## Getting Shortcuts
+
+Retrieve shortcut information for display or execution:
+
+### Get All Shortcuts
+
+```typescript
+import { getShortcuts } from '@/modules/shortcuts';
+
+const shortcuts = getShortcuts();
+// Returns array with both original and modified shortcuts
+```
+
+The returned shortcuts include:
+
+```typescript
+interface ShortcutWithOriginal extends ShortcutAction {
+  originalShortcut: string;  // Default shortcut
+  shortcut: string;          // Current (possibly modified) shortcut
+}
+```
+
+### Get Single Shortcut
+
+```typescript
+import { getShortcut, getCurrentShortcut } from '@/modules/shortcuts';
+
+// Get full shortcut object
+const shortcut = getShortcut('tabs.new');
+
+// Get just the key combination
+const keys = getCurrentShortcut('tabs.new');
+// Returns: "CommandOrControl+T"
+```
+
+From `src/main/modules/shortcuts.ts:117-129`.
+
+## Shortcut Format
+
+Shortcuts use Electron's accelerator syntax:
+
+### Modifiers
+
+- `CommandOrControl` - `Cmd` on macOS, `Ctrl` on Windows/Linux
+- `Command` or `Cmd` - macOS only
+- `Control` or `Ctrl` - All platforms
+- `Alt` or `Option` - Alt key
+- `Shift` - Shift key
+- `Super` - Windows key on Windows/Linux, Command key on macOS
+
+### Key Codes
+
+- Letter keys: `A`-`Z`
+- Number keys: `0`-`9`
+- Function keys: `F1`-`F24`
+- Arrow keys: `Left`, `Right`, `Up`, `Down`
+- Special keys: `Space`, `Tab`, `Enter`, `Escape`, `Backspace`, etc.
+
+### Examples
+
+```typescript
+'CommandOrControl+T'           // Ctrl+T on Windows, Cmd+T on macOS
+'Shift+CommandOrControl+R'     // Ctrl+Shift+R / Cmd+Shift+R
+'F12'                          // Function key F12
+'CommandOrControl+Left'        // Ctrl+Left Arrow / Cmd+Left Arrow
+```
+
+## Shortcut Events
+
+The shortcuts system emits events when shortcuts change:
+
+```typescript
+type ShortcutsEvents = {
+  'shortcuts-changed': [];
+}
+
+export const shortcutsEmitter = new TypedEventEmitter<ShortcutsEvents>();
+```
+
+From `src/main/saving/shortcuts.ts:15-18`.
+
+Listen for changes:
+
+```typescript
+import { shortcutsEmitter } from '@/saving/shortcuts';
+
+shortcutsEmitter.on('shortcuts-changed', () => {
+  // Shortcuts have been modified, reload them
+  const updated = getShortcuts();
+});
+```
+
+## Shortcut Categories
+
+Shortcuts are organized into categories for better organization:
+
+<AccordionGroup>
+  <Accordion title="Tabs">
+    Operations that create new tabs
+    - New Tab
+  </Accordion>
+
+  <Accordion title="Tab">
+    Operations on the current tab
+    - Close Tab
+    - Reload
+    - Force Reload
+    - Copy URL
+    - Toggle DevTools
+    - Find in Page
+  </Accordion>
+
+  <Accordion title="Navigation">
+    Browser navigation controls
+    - Go Back
+    - Go Forward
+    - Toggle Command Palette
+  </Accordion>
+
+  <Accordion title="Browser">
+    Browser-wide operations
+    - Open Settings
+    - New Window
+    - Close Window
+    - Toggle Sidebar
+  </Accordion>
+</AccordionGroup>
+
+## Typed Shortcut IDs
+
+The shortcut system uses TypeScript to ensure type safety:
+
+```typescript
+type ShortcutId = 
+  | 'tabs.new'
+  | 'tab.copyUrl'
+  | 'tab.reload'
+  | 'tab.forceReload'
+  | 'tab.close'
+  | 'tab.toggleDevTools'
+  | 'navigation.goBack'
+  | 'navigation.goForward'
+  | 'navigation.toggleCommandPalette'
+  | 'browser.openSettings'
+  | 'browser.newWindow'
+  | 'browser.closeWindow'
+  | 'browser.toggleSidebar'
+  | 'tab.findInPage';
+```
+
+Use type-safe shortcut IDs:
+
+```typescript
+import { getShortcutByTypedId } from '@/modules/shortcuts';
+
+const shortcut = getShortcutByTypedId('tabs.new');
+// TypeScript ensures the ID is valid
+```
+
+From `src/main/modules/shortcuts.ts:98-123`.
+
+## Shortcut Loading
+
+Shortcuts are loaded automatically on startup:
+
+```typescript
+async function loadShortcuts() {
+  const rawModifiedShortcuts = await ShortcutsDataStore.getFullData();
+  
+  for (const key of Object.keys(rawModifiedShortcuts)) {
+    const rawModifiedShortcutData = rawModifiedShortcuts[key];
+    const parseResult = ModifiedShortcutData(rawModifiedShortcutData);
+    if (!(parseResult instanceof type.errors)) {
+      modifiedShortcuts.set(key, parseResult);
+    }
+  }
+  
+  shortcutsEmitter.emit('shortcuts-changed');
+}
+
+loadShortcuts();
+```
+
+From `src/main/saving/shortcuts.ts:24-46`.
+
+## Shortcut Validation
+
+Custom shortcuts are validated using the `arktype` schema:
+
+```typescript
+const ModifiedShortcutData = type({
+  newShortcut: 'string'
+});
+
+const parseResult = ModifiedShortcutData(rawModifiedShortcutData);
+if (parseResult instanceof type.errors) {
+  // Invalid data, reject the change
+  return false;
+}
+```
+
+This ensures only valid shortcut data is persisted.
+
+## Implementation Details
+
+### Internal Variables
+
+The shortcuts system maintains an in-memory cache:
+
+```typescript
+const modifiedShortcuts: Map<string, ModifiedShortcutData> = new Map();
+```
+
+From `src/main/saving/shortcuts.ts:21`.
+
+### Merging Default and Modified
+
+When retrieving shortcuts, the system merges defaults with modifications:
+
+```typescript
+const updatedShortcuts = shortcuts.map((shortcut) => {
+  const modifiedShortcutData = modifiedShortcutsData.find(
+    ({ id }) => id === shortcut.id
+  );
+  return {
+    ...shortcut,
+    originalShortcut: shortcut.shortcut,
+    shortcut: modifiedShortcutData?.newShortcut || shortcut.shortcut
+  };
+});
+```
+
+From `src/main/modules/shortcuts.ts:105-112`.
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Avoid Conflicts" icon="triangle-exclamation">
+    Don't assign the same shortcut to multiple actions
+  </Card>
+  
+  <Card title="Use Modifiers" icon="command">
+    Always include at least one modifier key (Cmd/Ctrl/Alt)
+  </Card>
+  
+  <Card title="Be Consistent" icon="equals">
+    Follow platform conventions (Cmd on macOS, Ctrl on Windows)
+  </Card>
+  
+  <Card title="Test Thoroughly" icon="vial">
+    Verify shortcuts work in all contexts (tabs, settings, etc.)
+  </Card>
+</CardGroup>
+
+## Related Features
+
+- [Tabs](/features/tabs) - Many shortcuts operate on tabs
+- [Spaces](/features/spaces) - Space switching shortcuts
+- [Extensions](/features/extensions) - Extensions may register their own shortcuts
